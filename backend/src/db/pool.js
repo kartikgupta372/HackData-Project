@@ -13,11 +13,11 @@ const supabase = createClient(
 
 // Type detectors — exec_sql passes all params as text[], so we must explicitly
 // cast to the right Postgres type to avoid "expression is of type text" errors
-const UUID_RE  = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const INT_RE   = /^-?\d+$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const INT_RE = /^-?\d+$/;
 const FLOAT_RE = /^-?\d+\.\d+$/;
-const BOOL_RE  = /^(true|false)$/i;
-const JSON_RE  = /^(\{|\[)/;
+const BOOL_RE = /^(true|false)$/i;
+const JSON_RE = /^(\{|\[)/;
 
 /**
  * Auto-cast params in SQL text to their correct PostgreSQL types.
@@ -26,17 +26,17 @@ const JSON_RE  = /^(\{|\[)/;
  */
 function castParams(sql, strParams) {
   var out = sql;
-  strParams.forEach(function(p, i) {
+  strParams.forEach(function (p, i) {
     if (p === null || p === undefined) return;
-    var n   = i + 1;
+    var n = i + 1;
     // Negative lookahead: skip if $N already followed by digit (e.g. $10) or ::
-    var re  = new RegExp('\\$' + n + '(?![0-9]|::)', 'g');
+    var re = new RegExp('\\$' + n + '(?![0-9]|::)', 'g');
     var cast;
-    if      (UUID_RE.test(p))  cast = '::uuid';
-    else if (BOOL_RE.test(p))  cast = '::boolean';
-    else if (INT_RE.test(p))   cast = '::int';
+    if (UUID_RE.test(p)) cast = '::uuid';
+    else if (BOOL_RE.test(p)) cast = '::boolean';
+    else if (INT_RE.test(p)) cast = '::int';
     else if (FLOAT_RE.test(p)) cast = '::numeric';
-    else if (JSON_RE.test(p))  cast = '::jsonb';
+    else if (JSON_RE.test(p)) cast = '::jsonb';
     else return; // text — no cast needed, PostgreSQL accepts text as-is
     out = out.replace(re, '$' + n + cast);
   });
@@ -47,7 +47,7 @@ function castParams(sql, strParams) {
 // Handles SELECT, INSERT...RETURNING, UPDATE...RETURNING, DELETE
 async function supabaseQuery(text, params) {
   params = params || [];
-  var strParams = params.map(function(p) {
+  var strParams = params.map(function (p) {
     return (p === null || p === undefined) ? null : String(p);
   });
 
@@ -78,14 +78,14 @@ async function supabaseQuery(text, params) {
 
 const poolProxy = {
   query: supabaseQuery,
-  connect: async function() {
-    return { query: supabaseQuery, release: function() {} };
+  connect: async function () {
+    return { query: supabaseQuery, release: function () { } };
   },
-  end: async function() {},
+  end: async function () { },
 };
 
 // Startup connection test
-(async function() {
+(async function () {
   try {
     var t = await supabase.from('users').select('id', { count: 'exact', head: true });
     if (t.error) throw new Error(t.error.message);

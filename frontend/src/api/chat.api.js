@@ -5,7 +5,7 @@ import api from './axios'
 const BASE = import.meta.env.VITE_API_URL || ''
 
 export const chatApi = {
-  createSession:  ()          => api.post('/chat/sessions'),
+  createSession:  (siteUrl)   => api.post('/chat/sessions', siteUrl ? { siteUrl } : {}),
   listSessions:   ()          => api.get('/chat/sessions'),
   getSession:     (threadId)  => api.get(`/chat/sessions/${threadId}`),
   deleteSession:  (sessionId) => api.delete(`/chat/sessions/${sessionId}`),

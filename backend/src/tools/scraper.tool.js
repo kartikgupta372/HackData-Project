@@ -160,7 +160,7 @@ async function scrapeSinglePage(browser, url, options = {}) {
       has_cta: hasCta,
     };
   } finally {
-    await page.close().catch(() => {});
+    await page.close().catch(() => { });
   }
 }
 
@@ -193,7 +193,7 @@ async function discoverPages(browser, rootUrl, maxPages = 5) {
   } catch (err) {
     console.warn('Page discovery warning:', err.message);
   } finally {
-    await page.close().catch(() => {});
+    await page.close().catch(() => { });
   }
 
   return Array.from(urls).slice(0, maxPages);
@@ -243,7 +243,7 @@ async function scrapeWebsite(rootUrl, options = {}) {
 
       return results;
     } finally {
-      await browser.close().catch(() => {});
+      await browser.close().catch(() => { });
     }
   })();
 

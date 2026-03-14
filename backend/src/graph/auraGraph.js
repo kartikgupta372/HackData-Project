@@ -18,7 +18,7 @@ const {
 // ── Routing functions ─────────────────────────────────────────────────────────
 
 function routeFromOrchestrator(state) {
-  const valid = ['dom_intake','code_enhancer','heatmap_analyzer','page_analyzer','general_chat','design_preference'];
+  const valid = ['dom_intake', 'code_enhancer', 'heatmap_analyzer', 'page_analyzer', 'general_chat', 'design_preference'];
   const route = state.next_node ?? 'general_chat';
   return valid.includes(route) ? route : 'general_chat';
 }
@@ -46,23 +46,23 @@ async function buildAuraGraph() {
   console.log('✅ LangGraph checkpointer ready (MemorySaver)');
 
   const workflow = new StateGraph(AuraGraphState)
-    .addNode('orchestrator',      orchestratorNode)
-    .addNode('dom_intake',        domIntakeNode)
+    .addNode('orchestrator', orchestratorNode)
+    .addNode('dom_intake', domIntakeNode)
     .addNode('design_preference', designPreferenceNode)
-    .addNode('benchmark_rag',     benchmarkRagNode)
-    .addNode('heatmap_analyzer',  heatmapAnalyzerNode)
-    .addNode('page_analyzer',     pageAnalyzerNode)
-    .addNode('code_enhancer',     codeEnhancerNode)
-    .addNode('general_chat',      generalChatNode)
+    .addNode('benchmark_rag', benchmarkRagNode)
+    .addNode('heatmap_analyzer', heatmapAnalyzerNode)
+    .addNode('page_analyzer', pageAnalyzerNode)
+    .addNode('code_enhancer', codeEnhancerNode)
+    .addNode('general_chat', generalChatNode)
 
     .addEdge(START, 'orchestrator')
 
     .addConditionalEdges('orchestrator', routeFromOrchestrator, {
-      dom_intake:        'dom_intake',
-      code_enhancer:     'code_enhancer',
-      heatmap_analyzer:  'heatmap_analyzer',
-      page_analyzer:     'page_analyzer',
-      general_chat:      'general_chat',
+      dom_intake: 'dom_intake',
+      code_enhancer: 'code_enhancer',
+      heatmap_analyzer: 'heatmap_analyzer',
+      page_analyzer: 'page_analyzer',
+      general_chat: 'general_chat',
       design_preference: 'design_preference',
     })
 
@@ -77,7 +77,7 @@ async function buildAuraGraph() {
 
     .addConditionalEdges('heatmap_analyzer', routeFromHeatmapAnalyzer, {
       page_analyzer: 'page_analyzer',
-      general_chat:  'general_chat',
+      general_chat: 'general_chat',
     })
 
     .addConditionalEdges('page_analyzer', routeFromPageAnalyzer, {
@@ -86,7 +86,7 @@ async function buildAuraGraph() {
     })
 
     .addEdge('code_enhancer', END)
-    .addEdge('general_chat',  END);
+    .addEdge('general_chat', END);
 
   const compiled = workflow.compile({ checkpointer });
   console.log('✅ LangGraph compiled');
@@ -104,7 +104,7 @@ async function getGraph() {
 
 async function streamGraph(threadId, inputState, resWriter) {
   sse.setWriter(threadId, resWriter);
-  const graph  = await getGraph();
+  const graph = await getGraph();
   const config = { configurable: { thread_id: threadId }, recursion_limit: 25 };
 
   try {
@@ -133,14 +133,14 @@ async function streamGraph(threadId, inputState, resWriter) {
 }
 
 async function getSessionState(threadId) {
-  const graph  = await getGraph();
+  const graph = await getGraph();
   const config = { configurable: { thread_id: threadId } };
   return graph.getState(config);
 }
 
 async function resumeGraph(threadId, userMessage, resWriter) {
   sse.setWriter(threadId, resWriter);
-  const graph  = await getGraph();
+  const graph = await getGraph();
   const config = { configurable: { thread_id: threadId }, recursion_limit: 25 };
   const { HumanMessage } = require('@langchain/core/messages');
 

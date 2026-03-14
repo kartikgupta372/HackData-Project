@@ -3,17 +3,17 @@
 // avoids exec_sql for the most critical path in the app.
 
 const express = require('express');
-const bcrypt  = require('bcrypt');
-const jwt     = require('jsonwebtoken');
-const router  = express.Router();
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const router = express.Router();
 const { supabase } = require('../db/pool');
 const { authMiddleware } = require('../middleware/auth.middleware');
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure:   process.env.NODE_ENV === 'production',
+  secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax',
-  maxAge:   7 * 24 * 60 * 60 * 1000, // 7 days
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
 
 function signToken(userId) {

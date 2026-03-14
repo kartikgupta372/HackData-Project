@@ -42,12 +42,17 @@ export default function RecommendationsView() {
       qc.invalidateQueries({ queryKey: ['rec-cards'] })
       if (action === 'approve') {
         const d = res.data.data
-        if (d?.agent_session_id) {
-          // Pre-load the session into chat store and switch to chat tab
+        if (d?.agent_session_id && d?.agent_thread_id) {
+          // Switch to the newly created agent session in chat
           setActiveSession({ id: d.agent_session_id, thread_id: d.agent_thread_id })
-          setApprovedMsg('Agent session created! Switching to Chat…')
-          setTimeout(() => { setActiveFeature('chat'); setApprovedMsg('') }, 1800)
+          setApprovedMsg('✅ Card approved! Opening implementation session in Chat…')
+          setTimeout(() => { setActiveFeature('chat'); setApprovedMsg('') }, 1500)
+        } else {
+          setApprovedMsg('✅ Card approved!')
+          setTimeout(() => setApprovedMsg(''), 2000)
         }
+      } else {
+        setApprovedMsg('')
       }
     },
   })

@@ -17,7 +17,19 @@ function getLLM() {
   return _llm;
 }
 function safeJSON(text, fb = []) {
-  try { return JSON.parse(text.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim()); } catch { return fb; }
+  if (!text) return fb;
+  // Strip markdown code fences
+  let clean = text.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
+  // If response starts with text before the array, strip it
+  const arrStart = clean.indexOf('[');
+  const arrEnd   = clean.lastIndexOf(']');
+  if (arrStart !== -1 && arrEnd !== -1 && arrEnd > arrStart) {
+    clean = clean.substring(arrStart, arrEnd + 1);
+  }
+  try { return JSON.parse(clean); } catch(e) {
+    console.error('safeJSON parse failed:', e.message, '\nRaw (200):', text.substring(0,200));
+    return fb;
+  }
 }
 
 // ── POST /recommendations/track ───────────────────────────────────────────────
@@ -134,27 +146,33 @@ Return ONLY this JSON array (no markdown):
     ]);
 
     const cards = safeJSON(result.content, []);
-    if (!cards.length) return res.status(500).json({ success: false, error: 'AI failed to generate cards' });
+    if (!Array.isArray(cards) || !cards.length) {
+      console.error('Card generation raw response:', result.content.substring(0, 500));
+      return res.status(500).json({ success: false, error: 'AI failed to generate cards — try again in a moment' });
+    }
 
-    // 4. Save cards to DB
-    const toInsert = cards.map(c => ({
-      user_id:        req.user.id,
-      session_id:     sessionId ?? null,
-      site_url:       siteUrl,
-      page_key:       c.page_key ?? 'homepage',
-      site_type:      siteType,
-      title:          c.title,
-      description:    c.description,
-      change_type:    c.change_type,
-      element_target: c.element_target,
-      before_snippet: c.before_snippet,
-      after_snippet:  c.after_snippet,
-      inspired_by:    c.inspired_by,
-      inspired_url:   c.inspired_url,
-      design_law:     c.design_law,
-      impact_level:   c.impact_level ?? 'medium',
-      status:         'pending',
-    }));
+    // 4. Save cards to DB — omit session_id when null to avoid UUID cast error
+    const toInsert = cards.map(c => {
+      const row = {
+        user_id:        req.user.id,
+        site_url:       siteUrl,
+        page_key:       c.page_key ?? 'homepage',
+        site_type:      siteType,
+        title:          c.title ?? 'Improvement',
+        description:    c.description ?? '',
+        change_type:    c.change_type ?? 'layout',
+        element_target: c.element_target ?? '',
+        before_snippet: c.before_snippet ?? '',
+        after_snippet:  c.after_snippet ?? '',
+        inspired_by:    c.inspired_by ?? '',
+        inspired_url:   c.inspired_url ?? '',
+        design_law:     c.design_law ?? 'hierarchy',
+        impact_level:   c.impact_level ?? 'medium',
+        status:         'pending',
+      };
+      if (sessionId) row.session_id = sessionId;
+      return row;
+    });
 
     const { data: inserted, error } = await supabase
       .from('recommendation_cards')

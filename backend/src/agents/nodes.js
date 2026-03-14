@@ -66,13 +66,11 @@ async function orchestratorNode(state) {
   const result = await getLLM().invoke([
     new SystemMessage(
       `You are a routing agent. Classify the user's message into exactly one intent:
-- "analyze_website"  — user wants to analyse a URL or pasted HTML
-- "enhance_code"     — user explicitly wants HTML/CSS code changes, fixes, or enhancements applied to analysed pages
-- "heatmap_query"    — user is asking about heatmap / user attention data
-- "general_chat"     — design questions, insights, explanations, scores, recommendations, help, follow-ups
+- "analyze_website"  — user wants to analyse a URL or pasted HTML (first time analysis of a new site)
+- "general_chat"     — EVERYTHING ELSE: design questions, code requests, implement changes, comparisons, heatmap questions, follow-ups, "make my CTA better", "generate HTML for...", "compare with Stripe", etc.
 
-IMPORTANT: Route to "general_chat" for questions about design issues, what's wrong, why scores are low, etc.
-Only route to "enhance_code" when the user explicitly says "apply fixes", "generate code", "enhance", "update the HTML", etc.
+IMPORTANT: Only route to "analyze_website" when the user provides a NEW URL they want scraped for the FIRST TIME.
+Route ALL other requests including code generation, design changes, comparisons to "general_chat".
 
 Also extract the site URL if present.
 
@@ -85,9 +83,7 @@ Respond ONLY with JSON: { "intent": "<value>", "site_url": "<url or null>" }`
 
   const routeMap = {
     analyze_website: 'dom_intake',
-    enhance_code: 'code_enhancer',
-    heatmap_query: 'heatmap_analyzer',
-    general_chat: 'general_chat',
+    general_chat:    'general_chat',
   };
 
   return {
@@ -513,36 +509,104 @@ async function codeEnhancerNode(state) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// AGENT 8 — General Chat
+// AGENT 8 — General Chat (FULL POWER — analysis + code changes + comparisons)
 // ══════════════════════════════════════════════════════════════════════════════
 async function generalChatNode(state) {
   const threadId = state.thread_id;
   const last = state.messages[state.messages.length - 1];
   const userMsg = typeof last?.content === 'string' ? last.content : '';
 
+  // Build rich context from everything we know about the site
   const ctx = [];
-  if (state.site_url) ctx.push(`Current site: ${state.site_url} (${state.site_type})`);
-  if (Object.keys(state.scraped_pages ?? {}).length > 0)
-    ctx.push(`Scraped pages: ${Object.keys(state.scraped_pages).join(', ')}`);
-  if (Object.keys(state.page_analyses ?? {}).length > 0)
-    ctx.push(`Analysis scores: ${Object.entries(state.page_analyses).map(([pk, a]) => `${pk}: ${a.scores?.overall ?? '?'}/100`).join(', ')}`);
-  if (state.design_preferences?.style)
-    ctx.push(`Design prefs: ${JSON.stringify(state.design_preferences)}`);
 
-  const systemPrompt =
-    `You are Aura AI, an expert UI/UX design analyst and CRO consultant.\n` +
-    `You help website owners UNDERSTAND their designs deeply — you provide insights, analysis, scores, and explanations.\n` +
-    `You use design laws as your framework: Hick's Law, Fitts's Law, Gestalt Principles, F-Pattern, Visual Hierarchy, Rule of Thirds, Miller's Law.\n` +
-    `\n⚠️ IMPORTANT ROLE BOUNDARY:\n` +
-    `- You are the ANALYSIS & INSIGHTS agent. You explain what is wrong, why it matters, and what impact it has.\n` +
-    `- You do NOT write or generate HTML/CSS/code changes. When the user asks for code fixes, tell them to use the "Enhance" action in the sidebar — the design enhancement agents will handle that.\n` +
-    `- You CAN show short pseudocode or CSS property suggestions (e.g. "increase padding to 16px") but never full file rewrites.\n` +
-    (ctx.length > 0 ? `\nCURRENT SESSION CONTEXT:\n${ctx.join('\n')}\n` : '') +
-    `\nBe conversational, specific, and evidence-based. Reference real DOM elements. Format responses with markdown.`;
+  if (state.site_url) {
+    ctx.push(`WEBSITE: ${state.site_url} (type: ${state.site_type ?? 'unknown'})`);
+  }
+
+  if (state.design_preferences && Object.keys(state.design_preferences).length) {
+    ctx.push(`DESIGN PREFERENCES: style=${state.design_preferences.style}, priority=${state.design_preferences.priority}, laws=${state.design_preferences.priorityLaws?.join(', ')}`);
+  }
+
+  if (Object.keys(state.scraped_pages ?? {}).length > 0) {
+    const pageList = Object.entries(state.scraped_pages).map(([pk, pd]) =>
+      `• ${pk} (${pd.page_type}): ${pd.element_count} elements, CTA=${pd.has_cta}, screenshot=${pd.screenshot_url}`
+    ).join('\n');
+    ctx.push(`SCRAPED PAGES:\n${pageList}`);
+
+    // Include DOM summaries for the top 2 pages
+    const topPages = Object.entries(state.scraped_pages).slice(0, 2);
+    for (const [pk, pd] of topPages) {
+      if (pd.dom_summary) {
+        ctx.push(`DOM SUMMARY (${pk}):\n${pd.dom_summary.substring(0, 600)}`);
+      }
+    }
+  }
+
+  if (Object.keys(state.page_analyses ?? {}).length > 0) {
+    const scoreLines = Object.entries(state.page_analyses).map(([pk, a]) =>
+      `• ${pk}: overall=${a.scores?.overall}/100, fitts=${a.scores?.fitts}, gestalt=${a.scores?.gestalt}, hierarchy=${a.scores?.hierarchy}`
+    ).join('\n');
+    ctx.push(`DESIGN SCORES:\n${scoreLines}`);
+
+    const topRecs = Object.entries(state.page_analyses)
+      .flatMap(([pk, a]) => (a.recommendations ?? []).slice(0, 3).map(r =>
+        `  [${pk}] ${r.title} (${r.impact} impact, ${r.law}): ${r.description?.substring(0, 120)}`
+      ))
+      .slice(0, 8);
+    if (topRecs.length) ctx.push(`TOP RECOMMENDATIONS:\n${topRecs.join('\n')}`);
+
+    const critiques = Object.entries(state.page_analyses)
+      .map(([pk, a]) => a.critique ? `  [${pk}] ${a.critique.substring(0, 200)}` : null)
+      .filter(Boolean).slice(0, 3);
+    if (critiques.length) ctx.push(`CRITIQUES:\n${critiques.join('\n')}`);
+  }
+
+  if (state.benchmark_context) {
+    ctx.push(`BENCHMARK CONTEXT:\n${state.benchmark_context.substring(0, 500)}`);
+  }
+
+  if (Object.keys(state.heatmap_data ?? {}).length > 0) {
+    const hmLines = Object.entries(state.heatmap_data).map(([pk, h]) =>
+      `• ${pk}: ${h.context?.substring(0, 150)}`
+    ).join('\n');
+    ctx.push(`HEATMAP DATA:\n${hmLines}`);
+  }
+
+  if (Object.keys(state.enhanced_pages ?? {}).length > 0) {
+    const enh = Object.keys(state.enhanced_pages).join(', ');
+    ctx.push(`ENHANCED PAGES READY: ${enh} — user can ask to refine or download`);
+  }
+
+  // Check if this is a code implementation request (from approved recommendation card)
+  const isImplementationTask = state.design_prefs?.implementation_task;
+  const isCodeRequest = /\b(implement|apply|generate|write|create|build|code|html|css|enhance|fix|change|update|modify|improve)\b/i.test(userMsg);
+
+  const systemPrompt = `You are Aura AI — a full-stack UI/UX design expert and frontend engineer.
+
+You have FULL CAPABILITIES:
+1. ANALYSE — explain scores, what's wrong, why, which design law is violated
+2. COMPARE — compare the site against benchmarks (Linear, Stripe, etc.) and cite specific differences  
+3. CODE — generate complete enhanced HTML/CSS for any page or element
+4. IMPLEMENT — take approved recommendation cards and generate the actual code changes
+5. ADVISE — suggest what to change next, prioritise fixes, estimate impact
+
+DESIGN LAWS YOU APPLY: Hick's Law, Fitts's Law, Gestalt Principles, F-Pattern, Visual Hierarchy, Rule of Thirds, Miller's Law, Contrast, Typography.
+
+WHEN GENERATING CODE:
+- Output complete, ready-to-use HTML/CSS
+- Keep the site's brand identity but apply the fix
+- Wrap code in proper markdown code blocks
+- Explain each change and which design law it applies
+
+${isImplementationTask ? `\nIMPLEMENTATION TASK FROM APPROVED CARD:\n${JSON.stringify(isImplementationTask, null, 2)}\n\nImplement this specific change as clean HTML/CSS.` : ''}
+
+${ctx.length > 0 ? `\n== CURRENT WEBSITE CONTEXT ==\n${ctx.join('\n\n')}\n==========================` : 'No website loaded yet — ask the user for a URL to analyse.'}
+
+Be conversational, specific, and evidence-based. Reference actual DOM elements and real examples. Format responses with markdown.`;
 
   const stream = await getLLM().stream([
     new SystemMessage(systemPrompt),
-    ...state.messages.slice(-10),
+    ...state.messages.slice(-12),
     new HumanMessage(userMsg),
   ]);
 

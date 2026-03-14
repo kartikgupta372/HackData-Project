@@ -22,14 +22,28 @@ function safeJSON(t, fb = {}) {
   try { return JSON.parse(t.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim()); } catch { return fb; }
 }
 
+// SSRF-safe URL validator (shared across heatmap routes)
+function validatePublicUrl(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  try {
+    const p = new URL(raw.trim().substring(0, 2048));
+    if (!['http:', 'https:'].includes(p.protocol)) return null;
+    const h = p.hostname.toLowerCase();
+    if (['localhost','127.0.0.1','0.0.0.0','::1'].includes(h)) return null;
+    if (/^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.)/.test(h)) return null;
+    return p.href;
+  } catch { return null; }
+}
+
 // ── POST /heatmap/screenshot ──────────────────────────────────────────────────
 // Take a full-page screenshot of a URL and store it; return path + dimensions
 router.post('/screenshot', authMiddleware, async (req, res) => {
   const { url, pageKey = 'homepage' } = req.body;
-  if (!url) return res.status(400).json({ success: false, error: 'url required' });
+  const safeUrl = validatePublicUrl(url);
+  if (!safeUrl) return res.status(400).json({ success: false, error: 'A valid public http/https URL is required' });
   try {
     // fullPage: true gives the long screenshot needed for heatmap surveys
-    const pages = await scraper.scrapeWebsite(url, { maxPages: 1, fullPage: true });
+    const pages = await scraper.scrapeWebsite(safeUrl, { maxPages: 1, fullPage: true });
     const homeKey = Object.keys(pages)[0];
     if (!homeKey) return res.status(500).json({ success: false, error: 'Could not scrape page — the site may block bots, require login, or have slow JS rendering' });
     const page = pages[homeKey];

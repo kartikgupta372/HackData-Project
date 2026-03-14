@@ -4,13 +4,13 @@
 const pool = require('../db/pool');
 const { v4: uuidv4 } = require('uuid');
 
-async function createSession(userId) {
+async function createSession(userId, siteUrl = null) {
   const threadId = `aura_${uuidv4()}`;
   const { rows } = await pool.query(
-    `INSERT INTO chat_sessions (user_id, thread_id, title, status)
-     VALUES ($1, $2, 'New Analysis', 'active')
+    `INSERT INTO chat_sessions (user_id, thread_id, title, status, site_url)
+     VALUES ($1, $2, $3, 'active', $4)
      RETURNING *`,
-    [userId, threadId]
+    [userId, threadId, siteUrl ? `Analysis: ${new URL(siteUrl).hostname}` : 'New Analysis', siteUrl ?? null]
   );
   return rows[0];
 }

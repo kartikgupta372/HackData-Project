@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Activity, Camera, Link2, Eye, RefreshCw, Loader2, Plus,
-         Copy, Check, BarChart2, ChevronRight, X, Layers,
-         Users, ExternalLink, Sparkles, MessageSquare } from 'lucide-react'
+import {
+  Activity, Camera, Link2, Eye, RefreshCw, Loader2, Plus,
+  Copy, Check, BarChart2, ChevronRight, X, Layers,
+  Users, ExternalLink, Sparkles, MessageSquare
+} from 'lucide-react'
 import { heatmapApi } from '../../api/heatmap.api'
 import { useAuthStore } from '../../store/authStore'
 import { useChatStore } from '../../store/chatStore'
@@ -15,11 +17,11 @@ const VIEWS = ['surveys', 'bundles']
 // ── Heat colour scale (0-100 → colour) ──────────────────────────────────────
 function heatColor(v) {
   if (v === 0) return 'transparent'
-  if (v < 20)  return `rgba(0,0,255,${v/100*0.4})`
-  if (v < 40)  return `rgba(0,200,255,${v/100*0.5})`
-  if (v < 60)  return `rgba(0,255,100,${v/100*0.55})`
-  if (v < 80)  return `rgba(255,200,0,${v/100*0.65})`
-  return `rgba(255,${Math.round((100-v)*2.5)},0,${0.7+v/100*0.3})`
+  if (v < 20) return `rgba(0,0,255,${v / 100 * 0.4})`
+  if (v < 40) return `rgba(0,200,255,${v / 100 * 0.5})`
+  if (v < 60) return `rgba(0,255,100,${v / 100 * 0.55})`
+  if (v < 80) return `rgba(255,200,0,${v / 100 * 0.65})`
+  return `rgba(255,${Math.round((100 - v) * 2.5)},0,${0.7 + v / 100 * 0.3})`
 }
 
 export default function HeatmapView() {
@@ -27,8 +29,8 @@ export default function HeatmapView() {
   const { setActiveSession } = useChatStore()
   const { setActiveFeature } = useUIStore()
   const [activeView, setActiveView] = useState('surveys')
-  const [siteUrl, setSiteUrl]       = useState(onboardingData?.url || '')
-  const [inputUrl, setInputUrl]     = useState(onboardingData?.url || '')
+  const [siteUrl, setSiteUrl] = useState(onboardingData?.url || '')
+  const [inputUrl, setInputUrl] = useState(onboardingData?.url || '')
   const [selectedSurvey, setSelectedSurvey] = useState(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [copiedToken, setCopiedToken] = useState(null)
@@ -128,17 +130,17 @@ export default function HeatmapView() {
             {surveysLoading
               ? <div className="flex justify-center py-8"><Spinner size="sm" /></div>
               : surveys.length === 0
-              ? <p className="text-xs text-aura-faint text-center py-8">No surveys yet</p>
-              : surveys.map(s => (
-                <button key={s.id} onClick={() => setSelectedSurvey(s)}
-                  className={`w-full text-left px-3 py-2.5 rounded-lg mb-1 transition-all ${selectedSurvey?.id === s.id ? 'bg-aura-accent/10 border border-aura-accent/20' : 'hover:bg-aura-card border border-transparent'}`}>
-                  <p className="text-xs font-medium text-aura-text truncate">{s.title}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs text-aura-faint">{s.response_count} responses</span>
-                    <span className={`text-xs px-1 rounded ${s.is_active ? 'text-green-400' : 'text-aura-faint'}`}>{s.is_active ? '● live' : '○ closed'}</span>
-                  </div>
-                </button>
-              ))
+                ? <p className="text-xs text-aura-faint text-center py-8">No surveys yet</p>
+                : surveys.map(s => (
+                  <button key={s.id} onClick={() => setSelectedSurvey(s)}
+                    className={`w-full text-left px-3 py-2.5 rounded-lg mb-1 transition-all ${selectedSurvey?.id === s.id ? 'bg-aura-accent/10 border border-aura-accent/20' : 'hover:bg-aura-card border border-transparent'}`}>
+                    <p className="text-xs font-medium text-aura-text truncate">{s.title}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs text-aura-faint">{s.response_count} responses</span>
+                      <span className={`text-xs px-1 rounded ${s.is_active ? 'text-green-400' : 'text-aura-faint'}`}>{s.is_active ? '● live' : '○ closed'}</span>
+                    </div>
+                  </button>
+                ))
             }
           </div>
         )}
@@ -149,21 +151,21 @@ export default function HeatmapView() {
             {bundlesLoading
               ? <div className="flex justify-center py-8"><Spinner size="sm" /></div>
               : bundles.length === 0
-              ? <p className="text-xs text-aura-faint text-center py-8">No bundles yet<br/>Select surveys to bundle</p>
-              : bundles.map(b => (
-                <div key={b.id} className="px-3 py-2.5 rounded-lg mb-1.5 bg-aura-card border border-aura-border">
-                  <p className="text-xs font-medium text-aura-text truncate">{b.bundle_name}</p>
-                  <p className="text-xs text-aura-faint mt-0.5 mb-2">{b.page_keys?.length} pages · {new Date(b.created_at).toLocaleDateString()}</p>
-                  <button
-                    onClick={() => bundleToChatMutation.mutate(b.id)}
-                    disabled={bundleToChatMutation.isPending}
-                    className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md bg-aura-accent/10 border border-aura-accent/20 hover:bg-aura-accent/20 text-aura-accent text-xs font-medium transition-all disabled:opacity-40"
-                  >
-                    {bundleToChatMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <MessageSquare className="w-3 h-3" />}
-                    Send to Chat
-                  </button>
-                </div>
-              ))
+                ? <p className="text-xs text-aura-faint text-center py-8">No bundles yet<br />Select surveys to bundle</p>
+                : bundles.map(b => (
+                  <div key={b.id} className="px-3 py-2.5 rounded-lg mb-1.5 bg-aura-card border border-aura-border">
+                    <p className="text-xs font-medium text-aura-text truncate">{b.bundle_name}</p>
+                    <p className="text-xs text-aura-faint mt-0.5 mb-2">{b.page_keys?.length} pages · {new Date(b.created_at).toLocaleDateString()}</p>
+                    <button
+                      onClick={() => bundleToChatMutation.mutate(b.id)}
+                      disabled={bundleToChatMutation.isPending}
+                      className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md bg-aura-accent/10 border border-aura-accent/20 hover:bg-aura-accent/20 text-aura-accent text-xs font-medium transition-all disabled:opacity-40"
+                    >
+                      {bundleToChatMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <MessageSquare className="w-3 h-3" />}
+                      Send to Chat
+                    </button>
+                  </div>
+                ))
             }
           </div>
         )}
@@ -173,7 +175,7 @@ export default function HeatmapView() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <AnimatePresence>
           {bundleChatMsg && (
-            <motion.div initial={{ opacity:0, y:-8 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               className="mx-4 mt-3 flex items-center gap-2 px-4 py-2.5 bg-green-500/10 border border-green-500/20 rounded-xl shrink-0">
               <Check className="w-4 h-4 text-green-400 shrink-0" />
               <p className="text-xs font-medium text-green-300">{bundleChatMsg}</p>
@@ -279,9 +281,11 @@ function SurveyDetail({ survey, results, onCopy, copied, onCompute, computing, o
                 {/* Click dots */}
                 {!hm?.grid_data && clicks.slice(0, 100).map((c, i) => (
                   <div key={i} className="absolute w-3 h-3 rounded-full border-2 border-white/60"
-                    style={{ left: `calc(${c.x_pct * 100}% - 6px)`, top: `calc(${c.y_pct * 100}% - 6px)`,
+                    style={{
+                      left: `calc(${c.x_pct * 100}% - 6px)`, top: `calc(${c.y_pct * 100}% - 6px)`,
                       background: c.click_order === 1 ? 'rgba(255,50,50,0.7)' : c.click_order === 2 ? 'rgba(255,160,0,0.7)' : 'rgba(0,200,255,0.7)',
-                      boxShadow: '0 0 6px rgba(0,0,0,0.5)' }} />
+                      boxShadow: '0 0 6px rgba(0,0,0,0.5)'
+                    }} />
                 ))}
               </div>
             ) : (
@@ -296,9 +300,9 @@ function SurveyDetail({ survey, results, onCopy, copied, onCompute, computing, o
         {hm && (
           <div className="grid grid-cols-3 gap-3 mb-5">
             {[
-              { label: 'Responses',    value: survey.response_count },
-              { label: 'Above Fold',   value: `${hm.above_fold_pct}%` },
-              { label: 'Confidence',   value: hm.confidence_level ?? 'low' },
+              { label: 'Responses', value: survey.response_count },
+              { label: 'Above Fold', value: `${hm.above_fold_pct}%` },
+              { label: 'Confidence', value: hm.confidence_level ?? 'low' },
             ].map(s => (
               <div key={s.label} className="p-3 rounded-lg bg-aura-card border border-aura-border text-center">
                 <p className="text-lg font-display font-bold text-aura-accent">{s.value}</p>
@@ -330,14 +334,14 @@ function SurveyDetail({ survey, results, onCopy, copied, onCompute, computing, o
 }
 
 function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
-  const [url, setUrl]           = useState(defaultUrl || '')
-  const [pageKey, setPageKey]   = useState('homepage')
-  const [title, setTitle]       = useState('')
+  const [url, setUrl] = useState(defaultUrl || '')
+  const [pageKey, setPageKey] = useState('homepage')
+  const [title, setTitle] = useState('')
   const [instructions, setInstructions] = useState('')
-  const [step, setStep]         = useState('url') // url | screenshot | confirm
+  const [step, setStep] = useState('url') // url | screenshot | confirm
   const [screenshotData, setScreenshotData] = useState(null)
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleScreenshot = async () => {
     if (!url.trim()) { setError('URL required'); return }
@@ -423,15 +427,15 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-xs text-aura-muted border border-aura-border hover:border-aura-accent/30 transition-all">Cancel</button>
           {step === 'url'
             ? <button onClick={handleScreenshot} disabled={loading}
-                className="flex items-center gap-2 px-5 py-2 bg-aura-accent hover:bg-aura-accent-dim text-white text-xs font-medium rounded-lg transition-all disabled:opacity-40">
-                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
-                {loading ? 'Capturing…' : 'Take Screenshot'}
-              </button>
+              className="flex items-center gap-2 px-5 py-2 bg-aura-accent hover:bg-aura-accent-dim text-white text-xs font-medium rounded-lg transition-all disabled:opacity-40">
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+              {loading ? 'Capturing…' : 'Take Screenshot'}
+            </button>
             : <button onClick={handleCreate} disabled={loading}
-                className="flex items-center gap-2 px-5 py-2 bg-aura-accent hover:bg-aura-accent-dim text-white text-xs font-medium rounded-lg transition-all disabled:opacity-40">
-                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
-                {loading ? 'Creating…' : 'Create Survey & Get Link'}
-              </button>
+              className="flex items-center gap-2 px-5 py-2 bg-aura-accent hover:bg-aura-accent-dim text-white text-xs font-medium rounded-lg transition-all disabled:opacity-40">
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+              {loading ? 'Creating…' : 'Create Survey & Get Link'}
+            </button>
           }
         </div>
       </motion.div>

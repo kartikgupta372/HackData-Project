@@ -3,10 +3,13 @@
 
 const express     = require('express');
 const rateLimit   = require('express-rate-limit');
+const path        = require('path');
 const { HumanMessage } = require('@langchain/core/messages');
 const { streamGraph, getSessionState, resumeGraph } = require('../graph/auraGraph');
 const chatMemory  = require('../memory/chatMemory');
+const pool        = require('../db/pool');
 const { authMiddleware } = require('../middleware/auth.middleware');
+const scraper     = require('../tools/scraper.tool');
 
 const router = express.Router();
 
@@ -19,11 +22,59 @@ const chatLimiter = rateLimit({
   legacyHeaders:   false,
 });
 
-// ── POST /chat/sessions ── Create new session ──────────────────────────────────
-router.post('/sessions', authMiddleware, async (req, res) => {
+// SSRF-safe URL validator
+function validatePublicUrl(raw) {
+  if (!raw || typeof raw !== 'string') return null;
   try {
-    const session = await chatMemory.createSession(req.user.id);
+    const p = new URL(raw.trim().substring(0, 2048));
+    if (!['http:', 'https:'].includes(p.protocol)) return null;
+    const h = p.hostname.toLowerCase();
+    if (['localhost','127.0.0.1','0.0.0.0','::1'].includes(h)) return null;
+    if (/^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.)/.test(h)) return null;
+    return p.href;
+  } catch { return null; }
+}
+
+// ── POST /chat/sessions ── Create new session (optionally with site URL) ──────
+router.post('/sessions', authMiddleware, async (req, res) => {
+  const { siteUrl: rawSiteUrl } = req.body ?? {};
+  const siteUrl = rawSiteUrl ? validatePublicUrl(rawSiteUrl) : null;
+  // Note: invalid URL is silently ignored (session created without URL)
+  try {
+    const session = await chatMemory.createSession(req.user.id, siteUrl ?? null);
     res.status(201).json({ success: true, data: { session } });
+
+    // If URL provided, scrape all pages immediately in background
+    // Screenshots saved to uploads/, scraped_pages saved to DB
+    if (siteUrl) {
+      setImmediate(async () => {
+        try {
+          console.log(`[Session ${session.id}] Scraping ${siteUrl}...`);
+          const pages = await scraper.scrapeWebsite(siteUrl.trim(), { maxPages: 5, fullPage: true });
+          for (const [pageKey, pageData] of Object.entries(pages)) {
+            await pool.query(
+              `INSERT INTO scraped_pages
+                 (session_id, site_url, page_key, page_url, page_type, raw_html, computed_css, dom_summary, screenshot_url, element_count, has_cta)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+               ON CONFLICT (session_id, page_key) DO UPDATE
+               SET raw_html=$6, dom_summary=$8, screenshot_url=$9`,
+              [session.id, siteUrl.trim(), pageKey, pageData.page_url, pageData.page_type,
+               pageData.html, pageData.css, pageData.dom_summary,
+               pageData.screenshot_url, pageData.element_count, pageData.has_cta]
+            );
+          }
+          // Mark session as scraped
+          const { supabase } = pool;
+          await supabase.from('chat_sessions').update({
+            site_url:  siteUrl.trim(),
+            analysis_stage: 'scraped',
+          }).eq('id', session.id);
+          console.log(`[Session ${session.id}] Scraped ${Object.keys(pages).length} pages, screenshots saved`);
+        } catch (e) {
+          console.warn(`[Session ${session.id}] Background scrape failed:`, e.message);
+        }
+      });
+    }
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -137,20 +188,59 @@ router.post('/message', authMiddleware, chatLimiter, async (req, res) => {
 
   req.on('close', () => clearInterval(heartbeat));
 
+  // Load any existing scraped pages from DB into graph state
+  // This happens when session was created with a URL and background scraping already ran
+  async function loadScrapedPagesIntoState(sessionId, siteUrl) {
+    if (!sessionId || !siteUrl) return {};
+    try {
+      const { rows } = await pool.query(
+        'SELECT * FROM scraped_pages WHERE session_id = $1',
+        [sessionId]
+      );
+      if (!rows.length) return {};
+      const pages = {};
+      for (const row of rows) {
+        pages[row.page_key] = {
+          page_url:       row.page_url,
+          page_key:       row.page_key,
+          page_type:      row.page_type,
+          html:           row.raw_html ?? '',
+          css:            row.computed_css ?? '',
+          dom_summary:    row.dom_summary ?? '',
+          screenshot_url: row.screenshot_url ?? '',
+          element_count:  row.element_count ?? 0,
+          has_cta:        row.has_cta ?? false,
+        };
+      }
+      return pages;
+    } catch { return {}; }
+  }
+
   try {
     // Save user message
     await chatMemory.saveMessage(thread_id, session_id, 'user', message);
     res.write(`event: user_message\ndata: ${JSON.stringify({ content: message })}\n\n`);
 
+    let inputState = {
+      messages:   [new HumanMessage(message)],
+      session_id,
+      thread_id,
+      user_id:    req.user.id,
+    };
+
+    // Inject pre-scraped pages + site info into state for new messages
+    if (session.site_url && !is_resume) {
+      const existingPages = await loadScrapedPagesIntoState(session_id, session.site_url);
+      if (Object.keys(existingPages).length > 0) {
+        inputState.scraped_pages = existingPages;
+        inputState.site_url = session.site_url;
+        inputState.pages_to_analyze = Object.keys(existingPages);
+      }
+    }
+
     if (is_resume) {
       await resumeGraph(thread_id, message, res);
     } else {
-      const inputState = {
-        messages:   [new HumanMessage(message)],
-        session_id,
-        thread_id,
-        user_id:    req.user.id,
-      };
       await streamGraph(thread_id, inputState, res);
     }
 
