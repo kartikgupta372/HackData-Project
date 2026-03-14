@@ -1,37 +1,47 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '../../store/chatStore'
 import { chatApi } from '../../api/chat.api'
 import MessageList from './MessageList'
 import ChatInput from './ChatInput'
 import ProgressBar from './ProgressBar'
-import { Globe, Zap, BarChart2, Sparkles } from 'lucide-react'
+import { Globe, Zap, BarChart2 } from 'lucide-react'
 
 const SUGGESTIONS = [
-  { icon: Globe,    text: 'Analyse my landing page', sub: 'Paste a URL for full UX audit' },
-  { icon: Zap,      text: 'Improve my CTA',          sub: 'Boost conversion with design laws' },
-  { icon: BarChart2,text: 'Compare designs',         sub: 'Benchmark against top sites' },
+  { icon: Globe,     text: 'Analyse my landing page', sub: 'Paste a URL for full UX audit' },
+  { icon: Zap,       text: 'Improve my CTA',          sub: 'Boost conversion with design laws' },
+  { icon: BarChart2, text: 'Compare designs',         sub: 'Benchmark against top sites' },
 ]
 
 export default function ChatView() {
-  const { messages, isStreaming, streamingContent, currentStage, activeSessionId, activeThreadId, startStreaming, appendToken, finishStreaming, setStage, addMessage } = useChatStore()
+  const {
+    messages, isStreaming, streamingContent, currentStage,
+    activeSessionId, activeThreadId,
+    startStreaming, appendToken, finishStreaming, setStage, addMessage,
+  } = useChatStore()
+
   const hasContent = messages.length > 0 || isStreaming
 
-  const handleSend = async (text) => {
+  const handleSend = useCallback(async (text) => {
     if (!text.trim() || isStreaming) return
 
+    // Grab session IDs — may need to create one first
     let sessionId = activeSessionId
     let threadId  = activeThreadId
 
-    // Auto-create session if none active
     if (!sessionId) {
-      const res = await chatApi.createSession()
-      const s = res.data.data.session
-      useChatStore.getState().setActiveSession(s)
-      sessionId = s.id
-      threadId  = s.thread_id
-      // refresh sidebar
-      window.dispatchEvent(new CustomEvent('session-created'))
+      try {
+        const res = await chatApi.createSession()
+        const s   = res.data.data.session
+        useChatStore.getState().setActiveSession(s)
+        sessionId = s.id
+        threadId  = s.thread_id
+        // Notify Sidebar to refresh session list
+        window.dispatchEvent(new CustomEvent('aura:session-created', { detail: s }))
+      } catch (err) {
+        addMessage({ role: 'system', content: 'Could not create session. Is the backend running?', type: 'error', timestamp: new Date().toISOString() })
+        return
+      }
     }
 
     addMessage({ role: 'user', content: text, type: 'text', timestamp: new Date().toISOString() })
@@ -40,23 +50,38 @@ export default function ChatView() {
     await chatApi.streamMessage(
       { thread_id: threadId, session_id: sessionId, message: text },
       {
-        onStage:   (d) => setStage(d),
-        onToken:   (t) => appendToken(t),
+        onStage: (d) => setStage(d),
+        onToken: (t) => appendToken(t),
         onMessage: (d) => {
-          // full assistant message replaces streaming if not covered by tokens
-          if (!streamingContent) {
-            addMessage({ role: 'assistant', content: d.content, type: 'text', timestamp: new Date().toISOString() })
+          // Only add full message if no tokens came in (non-streaming node)
+          if (!useChatStore.getState().streamingContent) {
+            addMessage({
+              role: 'assistant',
+              content: d.content,
+              type: 'text',
+              timestamp: new Date().toISOString(),
+            })
           }
         },
-        onDone:    ()  => { finishStreaming(); setStage(null) },
-        onError:   (e) => {
+        onDone: () => {
           finishStreaming()
           setStage(null)
-          addMessage({ role: 'system', content: `Error: ${e}`, type: 'error', timestamp: new Date().toISOString() })
+          // Refresh sidebar session list (title may have updated)
+          window.dispatchEvent(new CustomEvent('aura:session-updated'))
+        },
+        onError: (e) => {
+          finishStreaming()
+          setStage(null)
+          addMessage({
+            role: 'system',
+            content: `⚠️ ${e || 'Something went wrong'}`,
+            type: 'error',
+            timestamp: new Date().toISOString(),
+          })
         },
       }
     )
-  }
+  }, [isStreaming, activeSessionId, activeThreadId, startStreaming, appendToken, finishStreaming, setStage, addMessage])
 
   return (
     <div className="flex flex-col h-full bg-aura-void">
@@ -86,7 +111,6 @@ function EmptyState({ onSend }) {
         transition={{ duration: 0.5, ease: [0.16,1,0.3,1] }}
         className="w-full max-w-2xl"
       >
-        {/* Header */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 mb-4 px-3 py-1.5 rounded-full bg-aura-accent/10 border border-aura-accent/20">
             <div className="w-1.5 h-1.5 rounded-full bg-aura-accent animate-pulse-slow" />
@@ -101,7 +125,6 @@ function EmptyState({ onSend }) {
           </p>
         </div>
 
-        {/* Suggestion cards */}
         <div className="grid grid-cols-3 gap-3 mb-8">
           {SUGGESTIONS.map((s, i) => {
             const Icon = s.icon

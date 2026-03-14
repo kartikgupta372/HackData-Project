@@ -22,10 +22,11 @@ app.use(cookieParser());
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // ── Routes ─────────────────────────────────────────────────────────────────────
-app.use('/auth', require('./routes/auth.routes'));
-app.use('/chat', require('./routes/chat.routes'));
-app.use('/heatmap', require('./routes/heatmap.routes'));
+app.use('/auth',        require('./routes/auth.routes'));
+app.use('/chat',        require('./routes/chat.routes'));
+app.use('/heatmap',     require('./routes/heatmap.routes'));
 app.use('/recommendations', require('./routes/recommendation.routes'));
+app.use('/onboarding',  require('./routes/onboarding.routes'));
 
 // Root route
 app.get('/', (_req, res) => {

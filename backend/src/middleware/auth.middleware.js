@@ -1,33 +1,41 @@
 // src/middleware/auth.middleware.js
+// Reads aura_token from HttpOnly cookie OR Authorization: Bearer header
 
-const jwt = require('jsonwebtoken');
-const pool = require('../db/pool');
+const jwt     = require('jsonwebtoken');
+const { supabase } = require('../db/pool');
 
 async function authMiddleware(req, res, next) {
   try {
     const token =
       req.cookies?.aura_token ??
-      req.headers?.authorization?.replace('Bearer ', '');
+      req.headers?.authorization?.replace('Bearer ', '').trim();
 
     if (!token) {
       return res.status(401).json({ success: false, error: 'Not authenticated' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+    }
 
-    const { rows } = await pool.query(
-      'SELECT id, name, email, plan FROM users WHERE id = $1',
-      [decoded.userId]
-    );
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, name, email, plan')
+      .eq('id', decoded.userId)
+      .maybeSingle();
 
-    if (!rows[0]) {
+    if (error || !user) {
       return res.status(401).json({ success: false, error: 'User not found' });
     }
 
-    req.user = rows[0];
+    req.user = user;
     next();
   } catch (err) {
-    return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+    console.error('Auth middleware error:', err.message);
+    return res.status(401).json({ success: false, error: 'Authentication failed' });
   }
 }
 

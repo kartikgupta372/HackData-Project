@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, MessageSquare, Trash2, ChevronLeft, ChevronRight, Settings, LogOut, Activity, Sparkles } from 'lucide-react'
+import { Plus, MessageSquare, Trash2, ChevronLeft, ChevronRight, Settings, LogOut, Sparkles } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useUIStore } from '../../store/uiStore'
 import { useChatStore } from '../../store/chatStore'
@@ -12,7 +12,7 @@ import { clsx } from 'clsx'
 export default function Sidebar() {
   const { user, logout } = useAuthStore()
   const { sidebarCollapsed, toggleSidebar } = useUIStore()
-  const { activeThreadId, setActiveSession, setSessions } = useChatStore()
+  const { activeThreadId, setActiveSession } = useChatStore()
   const qc = useQueryClient()
   const [deletingId, setDeletingId] = useState(null)
 
@@ -22,8 +22,19 @@ export default function Sidebar() {
       const res = await chatApi.listSessions()
       return res.data.data.sessions
     },
-    refetchInterval: 15000,
+    refetchInterval: 30000,
   })
+
+  // Refresh sidebar whenever ChatView creates or updates a session
+  useEffect(() => {
+    const refresh = () => qc.invalidateQueries({ queryKey: ['sessions'] })
+    window.addEventListener('aura:session-created', refresh)
+    window.addEventListener('aura:session-updated', refresh)
+    return () => {
+      window.removeEventListener('aura:session-created', refresh)
+      window.removeEventListener('aura:session-updated', refresh)
+    }
+  }, [qc])
   const sessions = sessionsData ?? []
 
   const handleNewChat = async () => {

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Star, TrendingUp, User, ExternalLink } from 'lucide-react'
-import { recommendationsApi } from '../../api/heatmap.api'
+import { recommendationsApi } from '../../api/recommendations.api'
 import PageRankCard from './PageRankCard'
 import PreferenceProfile from './PreferenceProfile'
 import Spinner from '../ui/Spinner'

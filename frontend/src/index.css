@@ -17,6 +17,11 @@
   body {
     margin: 0;
     background: #060608;
+    /* overflow managed per-page: landing page scrolls, app page does not */
+  }
+
+  /* App shell locks scroll; landing page is free-scroll */
+  body.app-mode {
     overflow: hidden;
     height: 100dvh;
   }

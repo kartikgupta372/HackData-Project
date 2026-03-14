@@ -18,7 +18,7 @@ let _llm = null;
 function getLLM() {
   if (!_llm) {
     _llm = new ChatGoogleGenerativeAI({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash',
       apiKey: process.env.GEMINI_API_KEY,
       temperature: 0.3,
       maxOutputTokens: 8192,
@@ -67,9 +67,12 @@ async function orchestratorNode(state) {
     new SystemMessage(
       `You are a routing agent. Classify the user's message into exactly one intent:
 - "analyze_website"  — user wants to analyse a URL or pasted HTML
-- "enhance_code"     — user wants code improvements on already-analysed pages
+- "enhance_code"     — user explicitly wants HTML/CSS code changes, fixes, or enhancements applied to analysed pages
 - "heatmap_query"    — user is asking about heatmap / user attention data
-- "general_chat"     — design questions, help, follow-ups, anything else
+- "general_chat"     — design questions, insights, explanations, scores, recommendations, help, follow-ups
+
+IMPORTANT: Route to "general_chat" for questions about design issues, what's wrong, why scores are low, etc.
+Only route to "enhance_code" when the user explicitly says "apply fixes", "generate code", "enhance", "update the HTML", etc.
 
 Also extract the site URL if present.
 
@@ -527,10 +530,15 @@ async function generalChatNode(state) {
     ctx.push(`Design prefs: ${JSON.stringify(state.design_preferences)}`);
 
   const systemPrompt =
-    `You are Aura AI, an expert UI/UX design assistant and frontend developer.\n` +
-    `You help website owners improve designs using: Hick's Law, Fitts's Law, Gestalt Principles, F-Pattern, Visual Hierarchy, Rule of Thirds, Miller's Law.\n` +
-    (ctx.length > 0 ? `\nCURRENT SESSION:\n${ctx.join('\n')}\n` : '') +
-    `\nBe conversational, specific, and actionable. Format responses with markdown.`;
+    `You are Aura AI, an expert UI/UX design analyst and CRO consultant.\n` +
+    `You help website owners UNDERSTAND their designs deeply — you provide insights, analysis, scores, and explanations.\n` +
+    `You use design laws as your framework: Hick's Law, Fitts's Law, Gestalt Principles, F-Pattern, Visual Hierarchy, Rule of Thirds, Miller's Law.\n` +
+    `\n⚠️ IMPORTANT ROLE BOUNDARY:\n` +
+    `- You are the ANALYSIS & INSIGHTS agent. You explain what is wrong, why it matters, and what impact it has.\n` +
+    `- You do NOT write or generate HTML/CSS/code changes. When the user asks for code fixes, tell them to use the "Enhance" action in the sidebar — the design enhancement agents will handle that.\n` +
+    `- You CAN show short pseudocode or CSS property suggestions (e.g. "increase padding to 16px") but never full file rewrites.\n` +
+    (ctx.length > 0 ? `\nCURRENT SESSION CONTEXT:\n${ctx.join('\n')}\n` : '') +
+    `\nBe conversational, specific, and evidence-based. Reference real DOM elements. Format responses with markdown.`;
 
   const stream = await getLLM().stream([
     new SystemMessage(systemPrompt),

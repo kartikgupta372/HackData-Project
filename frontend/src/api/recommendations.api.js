@@ -1,8 +1,9 @@
 import api from './axios'
 
+// Single source of truth for all recommendation API calls
 export const recommendationsApi = {
-  track:    (data)              => api.post('/recommendations/track', data),
-  getPages: (siteType, limit)   => api.get('/recommendations/pages', { params: { siteType, limit } }),
-  getProfile: ()                => api.get('/recommendations/profile'),
-  getTopSites: (siteType, limit)=> api.get('/recommendations/top-sites', { params: { siteType, limit } }),
+  track:      (data)   => api.post('/recommendations/track', data),
+  getPages:   (params) => api.get('/recommendations/pages', { params }),
+  getProfile: ()       => api.get('/recommendations/profile'),
+  getTopSites:(params) => api.get('/recommendations/top-sites', { params }),
 }

@@ -1,6 +1,8 @@
 import api from './axios'
 
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3002'
+// In dev (Vite proxy): '' (relative) — requests go through Vite to backend
+// In prod: VITE_API_URL
+const BASE = import.meta.env.VITE_API_URL || ''
 
 export const chatApi = {
   createSession:  ()          => api.post('/chat/sessions'),
@@ -10,26 +12,33 @@ export const chatApi = {
   getResults:     (sessionId) => api.get(`/chat/sessions/${sessionId}/results`),
   getState:       (threadId)  => api.get(`/chat/sessions/${threadId}/state`),
 
-  // SSE streaming — uses fetch() because EventSource only supports GET
+  // SSE uses native fetch because axios doesn't support streaming
+  // Must match the Vite proxy routes
   streamMessage: async (payload, handlers) => {
     const { onStage, onToken, onMessage, onDone, onError, onUserMessage } = handlers
 
-    const res = await fetch(`${BASE}/chat/message`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Request failed' }))
-      onError?.(err.error || 'Request failed')
+    let res
+    try {
+      res = await fetch(`${BASE}/chat/message`, {
+        method:      'POST',
+        credentials: 'include',
+        headers:     { 'Content-Type': 'application/json' },
+        body:        JSON.stringify(payload),
+      })
+    } catch (err) {
+      onError?.('Network error — is the backend running?')
       return
     }
 
-    const reader = res.body.getReader()
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: 'Request failed' }))
+      onError?.(body.error || `Server error ${res.status}`)
+      return
+    }
+
+    const reader  = res.body.getReader()
     const decoder = new TextDecoder()
-    let buffer = ''
+    let buffer    = ''
 
     while (true) {
       const { done, value } = await reader.read()
@@ -37,7 +46,7 @@ export const chatApi = {
 
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
-      buffer = lines.pop() // keep incomplete line
+      buffer = lines.pop()   // keep incomplete last line
 
       let eventType = null
       for (const line of lines) {
@@ -47,14 +56,16 @@ export const chatApi = {
           try {
             const data = JSON.parse(line.slice(6))
             switch (eventType) {
-              case 'user_message':     onUserMessage?.(data); break
-              case 'stage':           onStage?.(data);       break
-              case 'token':           onToken?.(data.token); break
-              case 'assistant_message': onMessage?.(data);   break
-              case 'done':            onDone?.(data);        break
-              case 'error':           onError?.(data.error); break
+              case 'user_message':      onUserMessage?.(data);        break
+              case 'stage':             onStage?.(data);              break
+              case 'node_update':       onStage?.(data);              break
+              case 'token':             onToken?.(data.token);        break
+              case 'assistant_message': onMessage?.(data);            break
+              case 'done':              onDone?.(data);               break
+              case 'error':             onError?.(data.error);        break
+              // ignore :heartbeat comments
             }
-          } catch {}
+          } catch { /* malformed JSON — skip */ }
           eventType = null
         }
       }
