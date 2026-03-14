@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useState } from 'react'
+﻿import { useRef, useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '../../store/chatStore'
 import { useAuthStore } from '../../store/authStore'
@@ -14,7 +14,7 @@ const SUGGESTIONS = [
   { icon: BarChart2, text: 'Compare my site with Stripe', sub: 'Benchmark against top sites' },
 ]
 
-// ── URL input modal shown when starting a new session ─────────────────────────
+// â”€â”€ URL input modal shown when starting a new session â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function NewSessionModal({ onSubmit, onSkip, loading }) {
   const [url, setUrl] = useState('')
   const { onboardingData } = useAuthStore()
@@ -77,7 +77,7 @@ function NewSessionModal({ onSubmit, onSkip, loading }) {
               onClick={onSkip}
               className="flex-1 py-2.5 rounded-xl border border-aura-border text-aura-muted hover:text-aura-text hover:border-aura-accent/30 text-sm transition-all"
             >
-              Skip — just chat
+              Skip â€” just chat
             </button>
             <button
               type="submit"
@@ -85,7 +85,7 @@ function NewSessionModal({ onSubmit, onSkip, loading }) {
               className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-aura-accent hover:bg-aura-accent-dim disabled:opacity-40 text-white text-sm font-medium transition-all"
             >
               {loading
-                ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping…</>
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Scrapingâ€¦</>
                 : <><ArrowRight className="w-4 h-4" />Start Analysis</>}
             </button>
           </div>
@@ -97,7 +97,7 @@ function NewSessionModal({ onSubmit, onSkip, loading }) {
             animate={{ opacity: 1 }}
             className="mt-3 text-center text-xs text-aura-muted"
           >
-            Taking full-page screenshots and scraping content… this takes ~15–30s
+            Taking full-page screenshots and scraping contentâ€¦ this takes ~15â€“30s
           </motion.p>
         )}
       </motion.div>
@@ -105,7 +105,7 @@ function NewSessionModal({ onSubmit, onSkip, loading }) {
   )
 }
 
-// ── Main ChatView ──────────────────────────────────────────────────────────────
+// â”€â”€ Main ChatView â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function ChatView() {
   const {
     messages, isStreaming, currentStage,
@@ -138,6 +138,38 @@ export default function ChatView() {
       .catch(() => {})
   }, [activeSessionId, activeThreadId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-send: when a recommendation card is approved, load & immediately send the first message
+  useEffect(() => {
+    const handler = async (e) => {
+      const { sessionId, threadId } = e.detail ?? {}
+      if (!sessionId || !threadId) return
+      // Wait for session to load, then auto-trigger the implementation message
+      setTimeout(async () => {
+        try {
+          const res = await chatApi.getSession(threadId)
+          const msgs = res.data?.data?.session?.messages ?? []
+          const firstUserMsg = msgs.find(m => m.role === 'user')
+          if (firstUserMsg?.content) {
+            // Pre-populate the message in store so it shows, then send it
+            useChatStore.getState().startStreaming()
+            await chatApi.streamMessage(
+              { thread_id: threadId, session_id: sessionId, message: firstUserMsg.content },
+              {
+                onStage:   (d) => useChatStore.getState().setStage(d),
+                onToken:   (t) => useChatStore.getState().appendToken(t),
+                onMessage: () => {},
+                onDone:    () => { useChatStore.getState().finishStreaming(); useChatStore.getState().setStage(null) },
+                onError:   () => { useChatStore.getState().finishStreaming(); useChatStore.getState().setStage(null) },
+              }
+            )
+          }
+        } catch {}
+      }, 600)
+    }
+    window.addEventListener('aura:auto-send-session', handler)
+    return () => window.removeEventListener('aura:auto-send-session', handler)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Create session with optional URL
   const createSessionWithUrl = useCallback(async (siteUrl) => {
     setCreatingSession(true)
@@ -150,7 +182,7 @@ export default function ChatView() {
       if (siteUrl) {
         useChatStore.getState().addMessage({
           role: 'system',
-          content: `🔍 Scraping **${siteUrl}** in the background — full-page screenshots and DOM analysis will be ready shortly. You can start chatting now!`,
+          content: `ðŸ” Scraping **${siteUrl}** in the background â€” full-page screenshots and DOM analysis will be ready shortly. You can start chatting now!`,
           type: 'info',
           timestamp: new Date().toISOString(),
         })
@@ -158,7 +190,7 @@ export default function ChatView() {
     } catch {
       useChatStore.getState().addMessage({
         role: 'system',
-        content: '❌ Could not create session. Is the backend running?',
+        content: 'âŒ Could not create session. Is the backend running?',
         type: 'error',
         timestamp: new Date().toISOString(),
       })
@@ -170,7 +202,7 @@ export default function ChatView() {
   const handleSend = useCallback(async (text) => {
     if (!text.trim() || isStreaming) return
 
-    // No session yet → open URL modal first (user picks URL or skips)
+    // No session yet â†’ open URL modal first (user picks URL or skips)
     if (!activeSessionId) {
       setShowUrlModal(true)
       return
@@ -198,7 +230,7 @@ export default function ChatView() {
         onError: (e) => {
           finishStreaming()
           setStage(null)
-          addMessage({ role: 'system', content: `⚠️ ${e || 'Something went wrong'}`, type: 'error', timestamp: new Date().toISOString() })
+          addMessage({ role: 'system', content: `âš ï¸ ${e || 'Something went wrong'}`, type: 'error', timestamp: new Date().toISOString() })
         },
       }
     )
@@ -212,7 +244,7 @@ export default function ChatView() {
         {currentStage && <ProgressBar stage={currentStage} />}
       </AnimatePresence>
 
-      {/* URL modal — shown when no session or user wants to start fresh */}
+      {/* URL modal â€” shown when no session or user wants to start fresh */}
       {showUrlModal ? (
         <NewSessionModal
           onSubmit={createSessionWithUrl}
@@ -229,7 +261,7 @@ export default function ChatView() {
             }
           </div>
 
-          {/* Chat input — always visible once modal is dismissed */}
+          {/* Chat input â€” always visible once modal is dismissed */}
           <div className="shrink-0">
             <ChatInput onSend={handleSend} disabled={isStreaming || creatingSession} />
           </div>
@@ -239,7 +271,7 @@ export default function ChatView() {
   )
 }
 
-// ── Empty state shown before any messages ──────────────────────────────────────
+// â”€â”€ Empty state shown before any messages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function EmptyState({ onSend, onNew }) {
   return (
     <div className="flex-1 h-full flex flex-col items-center justify-center px-6 pb-6">
@@ -259,7 +291,7 @@ function EmptyState({ onSend, onNew }) {
             <span className="text-gradient">to work on today?</span>
           </h1>
           <p className="text-sm text-aura-muted max-w-md mx-auto">
-            Analyse, compare, fix, or generate code — paste a URL or ask anything about your design.
+            Analyse, compare, fix, or generate code â€” paste a URL or ask anything about your design.
           </p>
         </div>
 
@@ -295,3 +327,4 @@ function EmptyState({ onSend, onNew }) {
     </div>
   )
 }
+

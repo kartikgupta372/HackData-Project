@@ -1,9 +1,11 @@
-// pool.js — Supabase SDK adapter (HTTPS only, zero pg dependency for queries)
-// Exposes pool.query(sql, params) interface for drop-in compatibility
-// All queries go through Supabase exec_sql RPC over HTTPS — no port 5432/6543 needed
-
+﻿// src/db/pool.js — Fixed: $N regex for params >=10, defensive service key check
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+  console.error('❌ SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in .env');
+  process.exit(1);
+}
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -11,66 +13,54 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
-// Type detectors — exec_sql passes all params as text[], so we must explicitly
-// cast to the right Postgres type to avoid "expression is of type text" errors
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const INT_RE = /^-?\d+$/;
+const UUID_RE  = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const INT_RE   = /^-?\d+$/;
 const FLOAT_RE = /^-?\d+\.\d+$/;
-const BOOL_RE = /^(true|false)$/i;
-const JSON_RE = /^(\{|\[)/;
+const BOOL_RE  = /^(true|false)$/i;
+const JSON_RE  = /^(\{|\[)/;
 
 /**
- * Auto-cast params in SQL text to their correct PostgreSQL types.
- * exec_sql passes everything as text[], which PostgreSQL won't auto-coerce
- * for uuid, int, numeric, boolean, or jsonb columns.
+ * FIX: Use \b (word boundary) instead of (?![0-9]) so $10, $11 etc. are
+ * correctly replaced. Old regex matched $1 inside $10 causing cast misses.
  */
 function castParams(sql, strParams) {
-  var out = sql;
-  strParams.forEach(function (p, i) {
+  let out = sql;
+  strParams.forEach((p, i) => {
     if (p === null || p === undefined) return;
-    var n = i + 1;
-    // Negative lookahead: skip if $N already followed by digit (e.g. $10) or ::
-    var re = new RegExp('\\$' + n + '(?![0-9]|::)', 'g');
-    var cast;
-    if (UUID_RE.test(p)) cast = '::uuid';
-    else if (BOOL_RE.test(p)) cast = '::boolean';
-    else if (INT_RE.test(p)) cast = '::int';
+    const n   = i + 1;
+    const re  = new RegExp('\\$' + n + '\\b(?!::)', 'g'); // FIX: \b not (?![0-9])
+    let cast;
+    if (UUID_RE.test(p))  cast = '::uuid';
+    else if (BOOL_RE.test(p))  cast = '::boolean';
+    else if (INT_RE.test(p))   cast = '::int';
     else if (FLOAT_RE.test(p)) cast = '::numeric';
-    else if (JSON_RE.test(p)) cast = '::jsonb';
-    else return; // text — no cast needed, PostgreSQL accepts text as-is
+    else if (JSON_RE.test(p))  cast = '::jsonb';
+    else return;
     out = out.replace(re, '$' + n + cast);
   });
   return out;
 }
 
-// Convert pg-style query to Supabase RPC call
-// Handles SELECT, INSERT...RETURNING, UPDATE...RETURNING, DELETE
 async function supabaseQuery(text, params) {
   params = params || [];
-  var strParams = params.map(function (p) {
-    return (p === null || p === undefined) ? null : String(p);
-  });
-
-  // Auto-cast params to correct Postgres types (uuid, int, numeric, boolean, jsonb)
-  var castText = castParams(text, strParams);
-
-  var upperText = castText.trim().toUpperCase();
-  var hasReturning = upperText.indexOf('RETURNING') !== -1;
-  var isSelect = upperText.startsWith('SELECT') || hasReturning;
+  const strParams = params.map(p => (p === null || p === undefined) ? null : String(p));
+  const castText  = castParams(text, strParams);
+  const upper     = castText.trim().toUpperCase();
+  const isSelect  = upper.startsWith('SELECT') || upper.includes('RETURNING');
 
   if (isSelect) {
-    var r1 = await supabase.rpc('exec_sql', { query: castText, params: strParams });
-    if (r1.error) {
-      console.error('Supabase exec_sql error:', r1.error.message, '| Query:', castText.substring(0, 100));
-      throw new Error(r1.error.message);
+    const { data, error } = await supabase.rpc('exec_sql', { query: castText, params: strParams });
+    if (error) {
+      console.error('exec_sql error:', error.message, '| Query:', castText.substring(0, 120));
+      throw new Error(error.message);
     }
-    var rows = r1.data || [];
-    return { rows: rows, rowCount: rows.length };
+    const rows = data || [];
+    return { rows, rowCount: rows.length };
   } else {
-    var r2 = await supabase.rpc('exec_sql_write', { query: castText, params: strParams });
-    if (r2.error) {
-      console.error('Supabase exec_sql_write error:', r2.error.message, '| Query:', castText.substring(0, 100));
-      throw new Error(r2.error.message);
+    const { error } = await supabase.rpc('exec_sql_write', { query: castText, params: strParams });
+    if (error) {
+      console.error('exec_sql_write error:', error.message, '| Query:', castText.substring(0, 120));
+      throw new Error(error.message);
     }
     return { rows: [], rowCount: 0 };
   }
@@ -78,17 +68,15 @@ async function supabaseQuery(text, params) {
 
 const poolProxy = {
   query: supabaseQuery,
-  connect: async function () {
-    return { query: supabaseQuery, release: function () { } };
-  },
-  end: async function () { },
+  connect: async () => ({ query: supabaseQuery, release: () => {} }),
+  end: async () => {},
 };
 
-// Startup connection test
-(async function () {
+// Startup test
+(async () => {
   try {
-    var t = await supabase.from('users').select('id', { count: 'exact', head: true });
-    if (t.error) throw new Error(t.error.message);
+    const { error } = await supabase.from('users').select('id', { count: 'exact', head: true });
+    if (error) throw new Error(error.message);
     console.log('✅ Supabase connected (HTTPS REST API)');
   } catch (err) {
     console.error('❌ Supabase connection failed:', err.message);

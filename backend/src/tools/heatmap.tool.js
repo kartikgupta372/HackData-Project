@@ -82,7 +82,7 @@ async function aggregateHeatmap(siteUrl, pageKey) {
   const desc = hotZones.slice(0,3).map(z => z.label+'@('+Math.round(z.x*100)+'%,'+Math.round(z.y*100)+'%) score:'+z.score).join('; ');
   const summaryText = sessionCount+' real sessions. '+afPct+'% above-fold. Hot zones: '+desc+'.';
   await pool.query(
-    'INSERT INTO heatmap_summaries (site_url,page_key,grid_data,hot_zones,attention_path,above_fold_pct,summary_text,confidence_level,session_count,predicted,last_updated) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,false,NOW()) ON CONFLICT ON CONSTRAINT heatmap_summaries_site_page_unique DO UPDATE SET grid_data=$3,hot_zones=$4,attention_path=$5,above_fold_pct=$6,summary_text=$7,confidence_level=$8,session_count=$9,predicted=false,last_updated=NOW()',
+    'INSERT INTO heatmap_summaries (site_url,page_key,grid_data,hot_zones,attention_path,above_fold_pct,summary_text,confidence_level,session_count,predicted,last_updated) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,false,NOW()) ON CONFLICT ON CONSTRAINT heatmap_summaries_site_url_page_key_key DO UPDATE SET grid_data=$3,hot_zones=$4,attention_path=$5,above_fold_pct=$6,summary_text=$7,confidence_level=$8,session_count=$9,predicted=false,last_updated=NOW()',
     [siteUrl, pageKey, JSON.stringify(normalized), JSON.stringify(hotZones), JSON.stringify(attentionPath.slice(0,50)), afPct, summaryText, sessionCount>=20?'high':sessionCount>=5?'medium':'low', sessionCount]
   );
   return { hasData: true, sessionCount, grid: normalized, hotZones, aboveFold: afPct, summaryText };
@@ -108,7 +108,7 @@ async function predictHeatmap(siteUrl, pageKey, screenshotPath, domSummary) {
   if (!parsed) return null;
   const summaryText = parsed.summary_text ?? 'AI-predicted: '+(parsed.primary_attention??'');
   await pool.query(
-    'INSERT INTO heatmap_summaries (site_url,page_key,hot_zones,above_fold_pct,summary_text,confidence_level,session_count,predicted,last_updated) VALUES ($1,$2,$3,$4,$5,\'none\',0,true,NOW()) ON CONFLICT ON CONSTRAINT heatmap_summaries_site_page_unique DO UPDATE SET hot_zones=$3,above_fold_pct=$4,summary_text=$5,predicted=true,last_updated=NOW() WHERE heatmap_summaries.predicted=true OR heatmap_summaries.session_count=0',
+    'INSERT INTO heatmap_summaries (site_url,page_key,hot_zones,above_fold_pct,summary_text,confidence_level,session_count,predicted,last_updated) VALUES ($1,$2,$3,$4,$5,\'none\',0,true,NOW()) ON CONFLICT ON CONSTRAINT heatmap_summaries_site_url_page_key_key DO UPDATE SET hot_zones=$3,above_fold_pct=$4,summary_text=$5,predicted=true,last_updated=NOW() WHERE heatmap_summaries.predicted=true OR heatmap_summaries.session_count=0',
     [siteUrl, pageKey, JSON.stringify(parsed.hot_zones), parsed.above_fold_pct, summaryText]
   );
   return { ...parsed, summaryText, predicted: true };
@@ -144,3 +144,4 @@ async function saveGazeSession(sessionData) {
 }
 
 module.exports = { aggregateHeatmap, predictHeatmap, getHeatmap, saveGazeSession };
+

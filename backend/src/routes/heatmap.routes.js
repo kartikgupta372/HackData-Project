@@ -1,4 +1,4 @@
-// src/routes/heatmap.routes.js
+﻿// src/routes/heatmap.routes.js
 // Heatmap: screenshot capture + shareable survey links + click collection + bundles
 
 const express = require('express');
@@ -22,20 +22,9 @@ function safeJSON(t, fb = {}) {
   try { return JSON.parse(t.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim()); } catch { return fb; }
 }
 
-// SSRF-safe URL validator (shared across heatmap routes)
-function validatePublicUrl(raw) {
-  if (!raw || typeof raw !== 'string') return null;
-  try {
-    const p = new URL(raw.trim().substring(0, 2048));
-    if (!['http:', 'https:'].includes(p.protocol)) return null;
-    const h = p.hostname.toLowerCase();
-    if (['localhost','127.0.0.1','0.0.0.0','::1'].includes(h)) return null;
-    if (/^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.)/.test(h)) return null;
-    return p.href;
-  } catch { return null; }
-}
+const { validatePublicUrl } = require('../utils/validateUrl');
 
-// ── POST /heatmap/screenshot ──────────────────────────────────────────────────
+// â”€â”€ POST /heatmap/screenshot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Take a full-page screenshot of a URL and store it; return path + dimensions
 router.post('/screenshot', authMiddleware, async (req, res) => {
   const { url, pageKey = 'homepage' } = req.body;
@@ -45,12 +34,17 @@ router.post('/screenshot', authMiddleware, async (req, res) => {
     // fullPage: true gives the long screenshot needed for heatmap surveys
     const pages = await scraper.scrapeWebsite(safeUrl, { maxPages: 1, fullPage: true });
     const homeKey = Object.keys(pages)[0];
-    if (!homeKey) return res.status(500).json({ success: false, error: 'Could not scrape page — the site may block bots, require login, or have slow JS rendering' });
+    if (!homeKey) return res.status(500).json({ success: false, error: 'Could not scrape page â€” the site may block bots, require login, or have slow JS rendering' });
     const page = pages[homeKey];
+    // Build absolute URL so frontend img src works directly
+    const backendUrl = process.env.BACKEND_URL ?? `http://localhost:${process.env.PORT ?? 3002}`;
+    const absoluteScreenshotUrl = page.screenshot_url?.startsWith('http')
+      ? page.screenshot_url
+      : `${backendUrl}${page.screenshot_url}`;
     res.json({
       success: true,
       data: {
-        screenshot_url:  page.screenshot_url,
+        screenshot_url:  absoluteScreenshotUrl,
         page_key:        pageKey || homeKey,
         page_url:        page.page_url,
         page_title:      page.page_title,
@@ -64,13 +58,13 @@ router.post('/screenshot', authMiddleware, async (req, res) => {
     res.status(500).json({
       success: false,
       error: err.message.includes('timed out')
-        ? 'Screenshot timed out — the site may be slow or block automated browsers. Try a simpler URL.'
+        ? 'Screenshot timed out â€” the site may be slow or block automated browsers. Try a simpler URL.'
         : `Screenshot failed: ${err.message}`
     });
   }
 });
 
-// ── POST /heatmap/create-survey ───────────────────────────────────────────────
+// â”€â”€ POST /heatmap/create-survey â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Create a shareable survey link for a page screenshot
 router.post('/create-survey', authMiddleware, async (req, res) => {
   const { siteUrl, pageKey, pageUrl, screenshotUrl, screenshotWidth, screenshotHeight, title, instructions } = req.body;
@@ -86,7 +80,7 @@ router.post('/create-survey', authMiddleware, async (req, res) => {
       screenshot_url:    screenshotUrl,
       screenshot_width:  screenshotWidth ?? 1280,
       screenshot_height: screenshotHeight ?? 3000,
-      title:             title ?? `Heatmap Survey — ${pageKey}`,
+      title:             title ?? `Heatmap Survey â€” ${pageKey}`,
       instructions:      instructions ?? 'Click on the areas of this page that catch your attention first. Add up to 5 clicks.',
     }).select().single();
     if (error) throw new Error(error.message);
@@ -97,8 +91,8 @@ router.post('/create-survey', authMiddleware, async (req, res) => {
   }
 });
 
-// ── GET /heatmap/survey/:token ────────────────────────────────────────────────
-// PUBLIC — get survey data (no auth needed, for respondents)
+// â”€â”€ GET /heatmap/survey/:token â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// PUBLIC â€” get survey data (no auth needed, for respondents)
 router.get('/survey/:token', async (req, res) => {
   try {
     const { data, error } = await supabase.from('heatmap_survey_links')
@@ -111,15 +105,16 @@ router.get('/survey/:token', async (req, res) => {
       return res.status(410).json({ success: false, error: 'Survey has expired' });
     }
     // Build full screenshot URL
+    const backendBase = process.env.BACKEND_URL ?? `http://localhost:${process.env.PORT ?? 3002}`;
     const screenshotFull = data.screenshot_url?.startsWith('http')
       ? data.screenshot_url
-      : `${process.env.FRONTEND_URL ?? 'http://localhost:5173'}${data.screenshot_url}`;
+      : `${backendBase}${data.screenshot_url}`;
     res.json({ success: true, data: { ...data, screenshot_url: screenshotFull } });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// ── POST /heatmap/survey/:token/submit ────────────────────────────────────────
-// PUBLIC — submit click data from a survey respondent
+// â”€â”€ POST /heatmap/survey/:token/submit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// PUBLIC â€” submit click data from a survey respondent
 router.post('/survey/:token/submit', async (req, res) => {
   const { clicks, participantId, deviceType } = req.body;
   if (!clicks?.length) return res.status(400).json({ success: false, error: 'clicks array required' });
@@ -165,7 +160,7 @@ router.post('/survey/:token/submit', async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// ── GET /heatmap/surveys ──────────────────────────────────────────────────────
+// â”€â”€ GET /heatmap/surveys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // List all survey links for the authenticated user
 router.get('/surveys', authMiddleware, async (req, res) => {
   try {
@@ -185,8 +180,8 @@ router.get('/surveys', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// ── GET /heatmap/survey/:token/results ────────────────────────────────────────
-// Get click heatmap results for a survey (auth required — owner only)
+// â”€â”€ GET /heatmap/survey/:token/results â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Get click heatmap results for a survey (auth required â€” owner only)
 router.get('/survey/:token/results', authMiddleware, async (req, res) => {
   try {
     const { data: survey, error } = await supabase.from('heatmap_survey_links')
@@ -201,7 +196,7 @@ router.get('/survey/:token/results', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// ── POST /heatmap/compute/:token ──────────────────────────────────────────────
+// â”€â”€ POST /heatmap/compute/:token â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Manually trigger heatmap computation from survey clicks
 router.post('/compute/:token', authMiddleware, async (req, res) => {
   try {
@@ -213,7 +208,7 @@ router.post('/compute/:token', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// ── POST /heatmap/bundle ──────────────────────────────────────────────────────
+// â”€â”€ POST /heatmap/bundle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Create an analysis bundle from selected pages' heatmap data (for chatbot)
 router.post('/bundle', authMiddleware, async (req, res) => {
   const { siteUrl, pageKeys, bundleName } = req.body;
@@ -246,7 +241,7 @@ router.post('/bundle', authMiddleware, async (req, res) => {
     const { data: bundle, error } = await supabase.from('heatmap_bundles').insert({
       user_id:     req.user.id,
       site_url:    siteUrl,
-      bundle_name: bundleName ?? `Bundle — ${new Date().toLocaleDateString()}`,
+      bundle_name: bundleName ?? `Bundle â€” ${new Date().toLocaleDateString()}`,
       page_keys:   pageKeys,
       bundle_data: bundleData,
       ai_summary:  aiSummary,
@@ -256,7 +251,7 @@ router.post('/bundle', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// ── POST /heatmap/bundle/:bundleId/send-to-chat ───────────────────────────────
+// â”€â”€ POST /heatmap/bundle/:bundleId/send-to-chat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Create a chat session pre-loaded with bundle heatmap data for AI analysis
 router.post('/bundle/:bundleId/send-to-chat', authMiddleware, async (req, res) => {
   try {
@@ -280,7 +275,7 @@ router.post('/bundle/:bundleId/send-to-chat', authMiddleware, async (req, res) =
 
     // Auto-save first message with bundle context
     const pagesSummary = bundle.bundle_data?.pages?.map(p =>
-      `• **${p.page_key}**: ${p.heatmap?.summary_text ?? 'No heatmap yet'}`
+      `â€¢ **${p.page_key}**: ${p.heatmap?.summary_text ?? 'No heatmap yet'}`
     ).join('\n') ?? 'Bundle pages attached.';
 
     const firstMsg = `Please analyse this heatmap bundle for ${bundle.site_url}:\n\n**${bundle.bundle_name}**\n\n${pagesSummary}\n\n**AI Summary:**\n${bundle.ai_summary ?? 'No summary yet.'}\n\nBased on this attention data, what are the key UX insights and what should I prioritise fixing?`;
@@ -301,7 +296,7 @@ router.post('/bundle/:bundleId/send-to-chat', authMiddleware, async (req, res) =
   }
 });
 
-// ── GET /heatmap/bundles ──────────────────────────────────────────────────────
+// â”€â”€ GET /heatmap/bundles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/bundles', authMiddleware, async (req, res) => {
   try {
     const { data, error } = await supabase.from('heatmap_bundles')
@@ -311,7 +306,7 @@ router.get('/bundles', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// ── Existing routes ───────────────────────────────────────────────────────────
+// â”€â”€ Existing routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post('/survey-legacy', async (req, res) => { /* kept for backward compat */
   try {
     const { siteUrl, pageKey, pageUrl, participantId, deviceWidth, deviceHeight, webcamUsed, events } = req.body;
@@ -356,7 +351,7 @@ router.get('/:pageKey', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// ── Helper: compute heatmap grid from survey click events ─────────────────────
+// â”€â”€ Helper: compute heatmap grid from survey click events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function computeSurveyHeatmap(surveyId, siteUrl, pageKey) {
   const { data: clicks } = await supabase.from('survey_click_events')
     .select('x_pct,y_pct,click_order').eq('survey_id', surveyId);
@@ -401,7 +396,7 @@ async function computeSurveyHeatmap(surveyId, siteUrl, pageKey) {
   const summaryText = `${sessionCount} survey responses. ${afPct}% of attention above fold. Top zones: ${hotZones.slice(0,3).map(z=>z.label+'@'+Math.round(z.x*100)+'%,'+Math.round(z.y*100)+'%').join('; ')}.`;
 
   await pool.query(
-    'INSERT INTO heatmap_summaries (site_url,page_key,grid_data,hot_zones,above_fold_pct,summary_text,confidence_level,session_count,predicted,last_updated) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false,NOW()) ON CONFLICT ON CONSTRAINT heatmap_summaries_site_page_unique DO UPDATE SET grid_data=$3,hot_zones=$4,above_fold_pct=$5,summary_text=$6,confidence_level=$7,session_count=$8,predicted=false,last_updated=NOW()',
+    'INSERT INTO heatmap_summaries (site_url,page_key,grid_data,hot_zones,above_fold_pct,summary_text,confidence_level,session_count,predicted,last_updated) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false,NOW()) ON CONFLICT ON CONSTRAINT heatmap_summaries_site_url_page_key_key DO UPDATE SET grid_data=$3,hot_zones=$4,above_fold_pct=$5,summary_text=$6,confidence_level=$7,session_count=$8,predicted=false,last_updated=NOW()',
     [siteUrl, pageKey, JSON.stringify(normalized), JSON.stringify(hotZones), afPct, summaryText, sessionCount>=20?'high':sessionCount>=5?'medium':'low', sessionCount]
   );
 
@@ -409,3 +404,7 @@ async function computeSurveyHeatmap(surveyId, siteUrl, pageKey) {
 }
 
 module.exports = router;
+
+
+
+

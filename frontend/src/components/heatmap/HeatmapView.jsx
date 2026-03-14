@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -14,7 +14,7 @@ import Spinner from '../ui/Spinner'
 
 const VIEWS = ['surveys', 'bundles']
 
-// ── Heat colour scale (0-100 → colour) ──────────────────────────────────────
+// â”€â”€ Heat colour scale (0-100 â†’ colour) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function heatColor(v) {
   if (v === 0) return 'transparent'
   if (v < 20) return `rgba(0,0,255,${v / 100 * 0.4})`
@@ -68,7 +68,7 @@ export default function HeatmapView() {
     onSuccess: (res) => {
       const s = res.data.data.session
       setActiveSession({ id: s.id, thread_id: s.thread_id })
-      setBundleChatMsg('Session created! Switching to Chat…')
+      setBundleChatMsg('Session created! Switching to Chatâ€¦')
       setTimeout(() => { setActiveFeature('chat'); setBundleChatMsg('') }, 1800)
     },
   })
@@ -83,7 +83,7 @@ export default function HeatmapView() {
   return (
     <div className="flex h-full bg-aura-void overflow-hidden">
 
-      {/* ── Left panel ── */}
+      {/* â”€â”€ Left panel â”€â”€ */}
       <div className="w-64 border-r border-aura-line bg-aura-surface flex flex-col shrink-0">
         <div className="p-4 border-b border-aura-line">
           <div className="flex items-center gap-2 mb-1">
@@ -97,9 +97,9 @@ export default function HeatmapView() {
         <div className="p-3 border-b border-aura-line">
           <div className="flex gap-1.5">
             <input value={inputUrl} onChange={e => setInputUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && setSiteUrl(inputUrl)}
-              placeholder="Filter by site URL…"
+              placeholder="Filter by site URLâ€¦"
               className="flex-1 bg-aura-card border border-aura-border rounded-lg px-2.5 py-1.5 text-xs text-aura-text placeholder:text-aura-faint outline-none focus:border-aura-accent transition-all" />
-            <button onClick={() => setSiteUrl(inputUrl)} className="px-2 py-1.5 bg-aura-accent hover:bg-aura-accent-dim text-white rounded-lg text-xs transition-all">→</button>
+            <button onClick={() => setSiteUrl(inputUrl)} className="px-2 py-1.5 bg-aura-accent hover:bg-aura-accent-dim text-white rounded-lg text-xs transition-all">â†’</button>
           </div>
         </div>
 
@@ -137,7 +137,7 @@ export default function HeatmapView() {
                     <p className="text-xs font-medium text-aura-text truncate">{s.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-xs text-aura-faint">{s.response_count} responses</span>
-                      <span className={`text-xs px-1 rounded ${s.is_active ? 'text-green-400' : 'text-aura-faint'}`}>{s.is_active ? '● live' : '○ closed'}</span>
+                      <span className={`text-xs px-1 rounded ${s.is_active ? 'text-green-400' : 'text-aura-faint'}`}>{s.is_active ? 'â— live' : 'â—‹ closed'}</span>
                     </div>
                   </button>
                 ))
@@ -155,7 +155,7 @@ export default function HeatmapView() {
                 : bundles.map(b => (
                   <div key={b.id} className="px-3 py-2.5 rounded-lg mb-1.5 bg-aura-card border border-aura-border">
                     <p className="text-xs font-medium text-aura-text truncate">{b.bundle_name}</p>
-                    <p className="text-xs text-aura-faint mt-0.5 mb-2">{b.page_keys?.length} pages · {new Date(b.created_at).toLocaleDateString()}</p>
+                    <p className="text-xs text-aura-faint mt-0.5 mb-2">{b.page_keys?.length} pages Â· {new Date(b.created_at).toLocaleDateString()}</p>
                     <button
                       onClick={() => bundleToChatMutation.mutate(b.id)}
                       disabled={bundleToChatMutation.isPending}
@@ -171,7 +171,7 @@ export default function HeatmapView() {
         )}
       </div>
 
-      {/* ── Main area ── */}
+      {/* â”€â”€ Main area â”€â”€ */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <AnimatePresence>
           {bundleChatMsg && (
@@ -223,7 +223,7 @@ function SurveyDetail({ survey, results, onCopy, copied, onCompute, computing, o
         </button>
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold text-aura-text truncate">{survey.title}</h3>
-          <p className="text-xs text-aura-muted">{survey.site_url} · {survey.page_key}</p>
+          <p className="text-xs text-aura-muted">{survey.site_url} Â· {survey.page_key}</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-aura-muted">{survey.response_count} responses</span>
@@ -363,7 +363,7 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
         pageUrl: url.trim(),
         screenshotUrl: screenshotData?.screenshot_url,
         screenshotWidth: 1280, screenshotHeight: 3000,
-        title: title || `Heatmap Survey — ${pageKey}`,
+        title: title || `Heatmap Survey â€” ${pageKey}`,
         instructions: instructions || undefined,
       })
       onCreated(res.data.data)
@@ -404,18 +404,18 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
           {step === 'confirm' && <>
             <div className="rounded-lg border border-aura-border overflow-hidden bg-aura-elevated text-center py-3">
               {screenshotData?.screenshot_url
-                ? <img src={`http://localhost:3002${screenshotData.screenshot_url}`} alt="Preview" className="max-h-48 mx-auto object-contain rounded" />
+                ? <img src={screenshotData.screenshot_url} alt="Preview" className="max-h-48 mx-auto object-contain rounded" />
                 : <p className="text-xs text-aura-faint py-8">Screenshot captured ({screenshotData?.element_count} elements)</p>}
             </div>
             <div>
               <label className="text-xs text-aura-muted uppercase tracking-wide mb-1.5 block">Survey Title</label>
-              <input value={title} onChange={e => setTitle(e.target.value)} placeholder={`Heatmap Survey — ${pageKey}`}
+              <input value={title} onChange={e => setTitle(e.target.value)} placeholder={`Heatmap Survey â€” ${pageKey}`}
                 className="w-full bg-aura-elevated border border-aura-border focus:border-aura-accent rounded-lg px-3.5 py-2.5 text-sm text-aura-text placeholder:text-aura-faint outline-none transition-all" />
             </div>
             <div>
               <label className="text-xs text-aura-muted uppercase tracking-wide mb-1.5 block">Instructions for participants <span className="normal-case text-aura-faint">(optional)</span></label>
               <textarea value={instructions} onChange={e => setInstructions(e.target.value)} rows={2}
-                placeholder="Click on the areas that catch your eye first…"
+                placeholder="Click on the areas that catch your eye firstâ€¦"
                 className="w-full bg-aura-elevated border border-aura-border focus:border-aura-accent rounded-lg px-3.5 py-2.5 text-sm text-aura-text placeholder:text-aura-faint outline-none transition-all resize-none" />
             </div>
           </>}
@@ -429,12 +429,12 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
             ? <button onClick={handleScreenshot} disabled={loading}
               className="flex items-center gap-2 px-5 py-2 bg-aura-accent hover:bg-aura-accent-dim text-white text-xs font-medium rounded-lg transition-all disabled:opacity-40">
               {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
-              {loading ? 'Capturing…' : 'Take Screenshot'}
+              {loading ? 'Capturingâ€¦' : 'Take Screenshot'}
             </button>
             : <button onClick={handleCreate} disabled={loading}
               className="flex items-center gap-2 px-5 py-2 bg-aura-accent hover:bg-aura-accent-dim text-white text-xs font-medium rounded-lg transition-all disabled:opacity-40">
               {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
-              {loading ? 'Creating…' : 'Create Survey & Get Link'}
+              {loading ? 'Creatingâ€¦' : 'Create Survey & Get Link'}
             </button>
           }
         </div>
@@ -465,3 +465,4 @@ function EmptyState({ activeView, onNew }) {
     </div>
   )
 }
+

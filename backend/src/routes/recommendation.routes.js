@@ -1,4 +1,4 @@
-// src/routes/recommendation.routes.js
+﻿// src/routes/recommendation.routes.js
 // Personalized recommendation + benchmark comparison card API
 
 const express = require('express');
@@ -10,6 +10,10 @@ const { searchBenchmarks } = require('../tools/vectorSearch.tool');
 const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
 const { HumanMessage, SystemMessage } = require('@langchain/core/messages');
 require('dotenv').config();
+const { validatePublicUrl } = require('../utils/validateUrl');
+
+// Simple in-memory card cache: key = userId:siteUrl, value = { cards, ts }
+const _cardCache = new Map();
 
 let _llm = null;
 function getLLM() {
@@ -32,7 +36,7 @@ function safeJSON(text, fb = []) {
   }
 }
 
-// ── POST /recommendations/track ───────────────────────────────────────────────
+// â”€â”€ POST /recommendations/track â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post('/track', authMiddleware, async (req, res) => {
   try {
     const { siteUrl, pageKey, actionType, actionData } = req.body;
@@ -41,7 +45,7 @@ router.post('/track', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// ── GET /recommendations/pages ────────────────────────────────────────────────
+// â”€â”€ GET /recommendations/pages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/pages', authMiddleware, async (req, res) => {
   try {
     const { siteType, limit } = req.query;
@@ -50,7 +54,7 @@ router.get('/pages', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// ── GET /recommendations/profile ──────────────────────────────────────────────
+// â”€â”€ GET /recommendations/profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/profile', authMiddleware, async (req, res) => {
   try {
     const profile = await rec.getUserProfile(req.user.id);
@@ -58,7 +62,7 @@ router.get('/profile', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// ── GET /recommendations/top-sites ────────────────────────────────────────────
+// â”€â”€ GET /recommendations/top-sites â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/top-sites', authMiddleware, async (req, res) => {
   try {
     const { siteType, limit } = req.query;
@@ -67,7 +71,7 @@ router.get('/top-sites', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// ── GET /recommendations/cards ────────────────────────────────────────────────
+// â”€â”€ GET /recommendations/cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Get all recommendation cards for the user (filtered by status/site)
 router.get('/cards', authMiddleware, async (req, res) => {
   try {
@@ -85,11 +89,22 @@ router.get('/cards', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// ── POST /recommendations/generate-cards ──────────────────────────────────────
+// â”€â”€ POST /recommendations/generate-cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // AI compares user's site analysis with top benchmarks and generates change cards
 router.post('/generate-cards', authMiddleware, async (req, res) => {
   const { siteUrl, siteType, sessionId, pageAnalyses } = req.body;
   if (!siteUrl || !siteType) return res.status(400).json({ success: false, error: 'siteUrl and siteType required' });
+
+  // FIX: validate URL
+  const cleanUrl = validatePublicUrl(siteUrl);
+  if (!cleanUrl) return res.status(400).json({ success: false, error: 'Invalid or private URL' });
+
+  // FIX: 1-hour cache per user+site to save Gemini quota
+  const cacheKey = req.user.id + ':' + cleanUrl;
+  const cached   = _cardCache.get(cacheKey);
+  if (cached && (Date.now() - cached.ts) < 3_600_000) {
+    return res.json({ success: true, data: { cards: cached.cards, benchmarks: cached.benchmarks, cached: true } });
+  }
 
   try {
     // 1. Get top 5 benchmarks for this site type
@@ -104,14 +119,14 @@ router.post('/generate-cards', authMiddleware, async (req, res) => {
       ? Object.entries(pageAnalyses).map(([pk, a]) =>
           `Page "${pk}": scores=${JSON.stringify(a.scores)}\n  critique=${a.critique?.substring(0,200)}\n  top recs=${a.recommendations?.slice(0,3).map(r => r.title).join(', ')}`
         ).join('\n')
-      : 'No page analysis data yet — generate cards based on site type best practices.';
+      : 'No page analysis data yet â€” generate cards based on site type best practices.';
 
     // 3. Call AI to generate change cards
     const result = await getLLM().invoke([
       new SystemMessage(
         `You are a senior UI/UX consultant. Generate specific, actionable design change cards for a website owner.
 Each card must reference a specific benchmark site as inspiration and cite a design law.
-Be concrete — reference real elements like "hero CTA button", "navigation bar", "pricing section".
+Be concrete â€” reference real elements like "hero CTA button", "navigation bar", "pricing section".
 Return ONLY a JSON array of cards.`
       ),
       new HumanMessage(
@@ -148,10 +163,10 @@ Return ONLY this JSON array (no markdown):
     const cards = safeJSON(result.content, []);
     if (!Array.isArray(cards) || !cards.length) {
       console.error('Card generation raw response:', result.content.substring(0, 500));
-      return res.status(500).json({ success: false, error: 'AI failed to generate cards — try again in a moment' });
+      return res.status(500).json({ success: false, error: 'AI failed to generate cards â€” try again in a moment' });
     }
 
-    // 4. Save cards to DB — omit session_id when null to avoid UUID cast error
+    // 4. Save cards to DB â€” omit session_id when null to avoid UUID cast error
     const toInsert = cards.map(c => {
       const row = {
         user_id:        req.user.id,
@@ -180,6 +195,8 @@ Return ONLY this JSON array (no markdown):
       .select();
 
     if (error) throw new Error(error.message);
+    // Save to cache
+    _cardCache.set(cacheKey, { cards: inserted, benchmarks, ts: Date.now() });
     res.json({ success: true, data: { cards: inserted, benchmarks } });
 
   } catch (err) {
@@ -188,7 +205,7 @@ Return ONLY this JSON array (no markdown):
   }
 });
 
-// ── POST /recommendations/cards/:cardId/action ────────────────────────────────
+// â”€â”€ POST /recommendations/cards/:cardId/action â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Approve or reject a recommendation card
 // On approve: creates a new chat session pre-loaded with the implementation task
 router.post('/cards/:cardId/action', authMiddleware, async (req, res) => {
@@ -272,3 +289,5 @@ router.post('/cards/:cardId/action', authMiddleware, async (req, res) => {
 });
 
 module.exports = router;
+
+

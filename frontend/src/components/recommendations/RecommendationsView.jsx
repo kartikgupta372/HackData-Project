@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Star, Check, X, ExternalLink, TrendingUp, ChevronRight,
@@ -11,7 +11,7 @@ import Spinner from '../ui/Spinner'
 
 const IMPACT_COLOR = { high: 'text-red-400 bg-red-400/10 border-red-400/20', medium: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20', low: 'text-green-400 bg-green-400/10 border-green-400/20' }
 const LAW_LABEL = { fitts:'Fitts Law', gestalt:'Gestalt', hicks:"Hick's Law", fpattern:'F-Pattern', hierarchy:'Visual Hierarchy', typography:'Typography', contrast:'Contrast' }
-const TYPE_ICON = { layout:'⬛', color:'🎨', typography:'🔤', cta:'⚡', navigation:'🧭', spacing:'📐', imagery:'🖼️' }
+const TYPE_ICON = { layout:'â¬›', color:'ðŸŽ¨', typography:'ðŸ”¤', cta:'âš¡', navigation:'ðŸ§­', spacing:'ðŸ“', imagery:'ðŸ–¼ï¸' }
 const STATUS_TABS = ['pending','approved','rejected']
 
 export default function RecommendationsView() {
@@ -20,12 +20,23 @@ export default function RecommendationsView() {
   const { setActiveFeature } = useUIStore()
   const [activeTab, setActiveTab]   = useState('pending')
   const [generating, setGenerating] = useState(false)
+  const [autoGenTriggered, setAutoGenTriggered] = useState(false)
   const [genError, setGenError]     = useState('')
   const [approvedMsg, setApprovedMsg] = useState('')
   const qc = useQueryClient()
 
+  // Auto-trigger card generation when user first opens Recommendations with onboarding URL
+  // Use a flag stored outside render to avoid stale closure on handleGenerate
+  const shouldAutoGen = !autoGenTriggered && !!siteUrl && !isLoading && cards.length === 0 && activeTab === 'pending' && !generating
+  useEffect(() => {
+    if (shouldAutoGen) {
+      setAutoGenTriggered(true)
+    }
+  }, [shouldAutoGen])
+
   const siteUrl  = onboardingData?.url    || ''
-  const siteType = onboardingData?.domain || 'saas'
+  const domainMap = { ecommerce:'ecommerce', saas:'saas', portfolio:'portfolio', restaurant:'restaurant', blog:'blog', agency:'agency', healthcare:'saas', education:'saas', other:'other' }
+  const siteType = domainMap[onboardingData?.domain] || 'saas'
 
   const { data: cards = [], isLoading } = useQuery({
     queryKey: ['rec-cards', activeTab, siteUrl],
@@ -45,10 +56,10 @@ export default function RecommendationsView() {
         if (d?.agent_session_id && d?.agent_thread_id) {
           // Switch to the newly created agent session in chat
           setActiveSession({ id: d.agent_session_id, thread_id: d.agent_thread_id })
-          setApprovedMsg('✅ Card approved! Opening implementation session in Chat…')
+          setApprovedMsg('âœ… Card approved! Opening implementation session in Chatâ€¦')
           setTimeout(() => { setActiveFeature('chat'); setApprovedMsg('') }, 1500)
         } else {
-          setApprovedMsg('✅ Card approved!')
+          setApprovedMsg('âœ… Card approved!')
           setTimeout(() => setApprovedMsg(''), 2000)
         }
       } else {
@@ -56,6 +67,13 @@ export default function RecommendationsView() {
       }
     },
   })
+
+  // Trigger auto-generate after autoGenTriggered flips (handleGenerate is now in scope)
+  useEffect(() => {
+    if (autoGenTriggered && !generating && cards.length === 0) {
+      handleGenerate()
+    }
+  }, [autoGenTriggered]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGenerate = async () => {
     if (!siteUrl) { setGenError('Complete onboarding first to set your site URL'); return }
@@ -72,7 +90,7 @@ export default function RecommendationsView() {
   return (
     <div className="flex h-full bg-aura-void overflow-hidden">
 
-      {/* ── Left sidebar ── */}
+      {/* â”€â”€ Left sidebar â”€â”€ */}
       <div className="w-64 border-r border-aura-line bg-aura-surface flex flex-col shrink-0">
         <div className="p-4 border-b border-aura-line">
           <div className="flex items-center gap-2 mb-1">
@@ -99,7 +117,7 @@ export default function RecommendationsView() {
             className="w-full flex items-center justify-center gap-2 bg-aura-accent hover:bg-aura-accent-dim disabled:opacity-40 text-white text-xs font-medium px-3 py-2.5 rounded-lg transition-all"
           >
             {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-            {generating ? 'Generating…' : 'Generate New Cards'}
+            {generating ? 'Generatingâ€¦' : 'Generate New Cards'}
           </button>
           {genError && <p className="mt-2 text-xs text-aura-error">{genError}</p>}
         </div>
@@ -116,7 +134,7 @@ export default function RecommendationsView() {
         </div>
       </div>
 
-      {/* ── Main cards area ── */}
+      {/* â”€â”€ Main cards area â”€â”€ */}
       <div className="flex-1 overflow-y-auto p-5">
         {/* Approved banner */}
         <AnimatePresence>
@@ -158,7 +176,7 @@ function RecommendationCard({ card, onAction, isPending }) {
       <div className="p-4">
         <div className="flex items-start gap-3 mb-3">
           <div className="w-8 h-8 rounded-lg bg-aura-elevated border border-aura-border flex items-center justify-center text-base shrink-0">
-            {TYPE_ICON[card.change_type] ?? '🔧'}
+            {TYPE_ICON[card.change_type] ?? 'ðŸ”§'}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -188,7 +206,7 @@ function RecommendationCard({ card, onAction, isPending }) {
           <span className="px-2 py-0.5 rounded bg-aura-accent/10 text-aura-accent border border-aura-accent/15 font-mono">
             {LAW_LABEL[card.design_law] ?? card.design_law}
           </span>
-          <span className="text-aura-faint">→</span>
+          <span className="text-aura-faint">â†’</span>
           <span className="text-aura-muted capitalize">{card.element_target}</span>
           <span className="ml-auto text-aura-faint capitalize">{card.page_key}</span>
         </div>
@@ -204,7 +222,7 @@ function RecommendationCard({ card, onAction, isPending }) {
         </a>
       </div>
 
-      {/* Action buttons — only for pending cards */}
+      {/* Action buttons â€” only for pending cards */}
       {!isDecided && (
         <div className="px-4 py-3 border-t border-aura-line flex gap-2">
           <button
@@ -220,7 +238,7 @@ function RecommendationCard({ card, onAction, isPending }) {
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-aura-accent hover:bg-aura-accent-dim text-white text-xs font-medium transition-all disabled:opacity-40"
           >
             {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-            Approve → Agent
+            Approve â†’ Agent
           </button>
         </div>
       )}
@@ -230,7 +248,7 @@ function RecommendationCard({ card, onAction, isPending }) {
         <div className={`px-4 py-2.5 border-t border-aura-line flex items-center gap-2 ${card.status === 'approved' ? 'bg-green-500/5' : 'bg-red-500/5'}`}>
           {card.status === 'approved' ? <Check className="w-3.5 h-3.5 text-green-400" /> : <X className="w-3.5 h-3.5 text-red-400" />}
           <span className={`text-xs font-medium capitalize ${card.status === 'approved' ? 'text-green-400' : 'text-red-400'}`}>
-            {card.status === 'approved' ? 'Approved — Agent tasked' : 'Rejected'}
+            {card.status === 'approved' ? 'Approved â€” Agent tasked' : 'Rejected'}
           </span>
           {card.status === 'approved' && card.agent_session_id && (
             <span className="ml-auto text-xs text-aura-faint font-mono">Session ready in Chat</span>
@@ -261,9 +279,13 @@ function EmptyCards({ tab, onGenerate, generating, hasUrl }) {
         <button onClick={onGenerate} disabled={generating}
           className="flex items-center gap-2 bg-aura-accent hover:bg-aura-accent-dim disabled:opacity-40 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-all">
           {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-          {generating ? 'Generating…' : 'Generate Cards'}
+          {generating ? 'Generatingâ€¦' : 'Generate Cards'}
         </button>
       )}
     </div>
   )
 }
+
+
+
+

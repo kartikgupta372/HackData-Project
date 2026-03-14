@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, MessageSquare, Trash2, ChevronLeft, ChevronRight, Settings, LogOut, Sparkles } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
@@ -10,8 +10,8 @@ import { formatDistanceToNow } from 'date-fns'
 import { clsx } from 'clsx'
 
 export default function Sidebar() {
-  const { user, logout } = useAuthStore()
-  const { sidebarCollapsed, toggleSidebar } = useUIStore()
+  const { user, logout, onboardingData } = useAuthStore()
+  const { sidebarCollapsed, toggleSidebar, setActiveFeature } = useUIStore()
   const { activeThreadId, setActiveSession } = useChatStore()
   const qc = useQueryClient()
   const [deletingId, setDeletingId] = useState(null)
@@ -38,10 +38,17 @@ export default function Sidebar() {
   const sessions = sessionsData ?? []
 
   const handleNewChat = async () => {
-    const res = await chatApi.createSession()
+    // Use the onboarded site URL so the AI has context from the start
+    const siteUrl = onboardingData?.url ?? null
+    const res = await chatApi.createSession(siteUrl)
     const session = res.data.data.session
     qc.invalidateQueries({ queryKey: ['sessions'] })
     setActiveSession(session)
+    setActiveFeature('chat')
+    // Tell ChatView to show the URL scraping message
+    if (siteUrl) {
+      window.dispatchEvent(new CustomEvent('aura:session-created', { detail: session }))
+    }
   }
 
   const handleSelectSession = async (s) => {
@@ -223,3 +230,4 @@ function SidebarButton({ icon, label, collapsed, onClick }) {
     </button>
   )
 }
+

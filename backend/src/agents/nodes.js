@@ -1,7 +1,7 @@
-// src/agents/nodes.js
+﻿// src/agents/nodes.js
 // All 8 LangGraph agent node functions
 
-// ── dotenv MUST be first — before any process.env access ─────────────────────
+// â”€â”€ dotenv MUST be first â€” before any process.env access â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 require('dotenv').config();
 
 const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
@@ -13,12 +13,12 @@ const heatmapTool = require('../tools/heatmap.tool');
 const recTool = require('../tools/recommendation.tool');
 const sse = require('../utils/sseRegistry');
 
-// ── Lazy LLM singleton — created on first use, after dotenv has loaded ─────────
+// â”€â”€ Lazy LLM singleton â€” created on first use, after dotenv has loaded â”€â”€â”€â”€â”€â”€â”€â”€â”€
 let _llm = null;
 function getLLM() {
   if (!_llm) {
     _llm = new ChatGoogleGenerativeAI({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       apiKey: process.env.GEMINI_API_KEY,
       temperature: 0.3,
       maxOutputTokens: 8192,
@@ -28,7 +28,7 @@ function getLLM() {
   return _llm;
 }
 
-// ── Utility: safe JSON parse from LLM output ───────────────────────────────────
+// â”€â”€ Utility: safe JSON parse from LLM output â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function safeParseJSON(text, fallback = {}) {
   try {
     const clean = text
@@ -41,17 +41,17 @@ function safeParseJSON(text, fallback = {}) {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// AGENT 1 — Orchestrator
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// AGENT 1 â€” Orchestrator
 // Routes the user message to the right agent.
 // BUG FIX: also checks state to handle mid-flow re-entries (e.g. preference reply)
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 async function orchestratorNode(state) {
   const last = state.messages[state.messages.length - 1];
   const text = typeof last?.content === 'string' ? last.content : '';
 
-  // ── State-based routing (takes priority over message content) ────────────
-  // If pages were scraped but preferences not collected yet → user is replying
+  // â”€â”€ State-based routing (takes priority over message content) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // If pages were scraped but preferences not collected yet â†’ user is replying
   // to the "tell me your design goals" question. Route to design_preference.
   const hasScrapedPages = Object.keys(state.scraped_pages ?? {}).length > 0;
   if (hasScrapedPages && !state.design_prefs_collected) {
@@ -62,12 +62,12 @@ async function orchestratorNode(state) {
     };
   }
 
-  // ── Message-content routing ───────────────────────────────────────────────
+  // â”€â”€ Message-content routing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const result = await getLLM().invoke([
     new SystemMessage(
       `You are a routing agent. Classify the user's message into exactly one intent:
-- "analyze_website"  — user wants to analyse a URL or pasted HTML (first time analysis of a new site)
-- "general_chat"     — EVERYTHING ELSE: design questions, code requests, implement changes, comparisons, heatmap questions, follow-ups, "make my CTA better", "generate HTML for...", "compare with Stripe", etc.
+- "analyze_website"  â€” user wants to analyse a URL or pasted HTML (first time analysis of a new site)
+- "general_chat"     â€” EVERYTHING ELSE: design questions, code requests, implement changes, comparisons, heatmap questions, follow-ups, "make my CTA better", "generate HTML for...", "compare with Stripe", etc.
 
 IMPORTANT: Only route to "analyze_website" when the user provides a NEW URL they want scraped for the FIRST TIME.
 Route ALL other requests including code generation, design changes, comparisons to "general_chat".
@@ -94,10 +94,10 @@ Respond ONLY with JSON: { "intent": "<value>", "site_url": "<url or null>" }`
   };
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// AGENT 2 — DOM Intake
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// AGENT 2 â€” DOM Intake
 // Scrapes the website, classifies site type, saves pages to DB.
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 async function domIntakeNode(state) {
   const threadId = state.thread_id;
   const last = state.messages[state.messages.length - 1];
@@ -115,7 +115,7 @@ async function domIntakeNode(state) {
     };
   }
 
-  sse.emit(threadId, 'stage', { stage: 'scraping', message: `Scraping ${targetUrl}…`, progress: 5 });
+  sse.emit(threadId, 'stage', { stage: 'scraping', message: `Scraping ${targetUrl}â€¦`, progress: 5 });
 
   try {
     const pages = await scraper.scrapeWebsite(targetUrl, { maxPages: 5 });
@@ -143,7 +143,7 @@ async function domIntakeNode(state) {
       }
     }
 
-    const pageList = Object.keys(pages).map(k => `• \`${k}\` (${pages[k].page_type})`).join('\n');
+    const pageList = Object.keys(pages).map(k => `â€¢ \`${k}\` (${pages[k].page_type})`).join('\n');
     sse.emit(threadId, 'stage', { stage: 'scraping_done', progress: 20 });
 
     return {
@@ -153,13 +153,13 @@ async function domIntakeNode(state) {
       pages_to_analyze: Object.keys(pages),
       current_stage: 'gathering_prefs',
       messages: [new AIMessage(
-        `✅ **Scraped ${Object.keys(pages).length} pages** from \`${targetUrl}\`\n\n` +
+        `âœ… **Scraped ${Object.keys(pages).length} pages** from \`${targetUrl}\`\n\n` +
         `${pageList}\n\n` +
         `**Site type detected:** ${site_type}\n\n` +
         `Before I analyse, tell me your design goals:\n\n` +
-        `1. **Style direction** — e.g. dark modern, clean minimal, bold, corporate, playful\n` +
-        `2. **Top priority** — conversions, aesthetics, mobile UX, accessibility, or all\n` +
-        `3. **Design laws to apply** — say "all" or pick: Fitts, Hick's, Gestalt, F-Pattern, Visual Hierarchy, Typography\n` +
+        `1. **Style direction** â€” e.g. dark modern, clean minimal, bold, corporate, playful\n` +
+        `2. **Top priority** â€” conversions, aesthetics, mobile UX, accessibility, or all\n` +
+        `3. **Design laws to apply** â€” say "all" or pick: Fitts, Hick's, Gestalt, F-Pattern, Visual Hierarchy, Typography\n` +
         `4. **Anything specific** you already know needs fixing`
       )],
     };
@@ -169,16 +169,16 @@ async function domIntakeNode(state) {
       current_stage: 'error',
       error: err.message,
       messages: [new AIMessage(
-        `❌ Could not scrape that site: \`${err.message}\`\n\nYou can also **paste HTML directly** and I'll analyse it.`
+        `âŒ Could not scrape that site: \`${err.message}\`\n\nYou can also **paste HTML directly** and I'll analyse it.`
       )],
     };
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// AGENT 3 — Design Preference Collector
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// AGENT 3 â€” Design Preference Collector
 // Parses the user's design goals from their reply.
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 async function designPreferenceNode(state) {
   if (state.design_prefs_collected) {
     return { next_node: 'benchmark_rag' };
@@ -228,17 +228,17 @@ async function designPreferenceNode(state) {
     current_stage: 'fetching_benchmarks',
     messages: [new AIMessage(
       `Got it! Focusing on **${prefs.style}** style with **${prefs.priority}** priority.\n` +
-      `Applying: **${laws}**\n\nFetching top benchmark sites and your heatmap data now…`
+      `Applying: **${laws}**\n\nFetching top benchmark sites and your heatmap data nowâ€¦`
     )],
   };
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// AGENT 4 — Benchmark RAG
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// AGENT 4 â€” Benchmark RAG
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 async function benchmarkRagNode(state) {
   const threadId = state.thread_id;
-  sse.emit(threadId, 'stage', { stage: 'fetching_benchmarks', message: 'Finding benchmark sites…', progress: 35 });
+  sse.emit(threadId, 'stage', { stage: 'fetching_benchmarks', message: 'Finding benchmark sitesâ€¦', progress: 35 });
 
   try {
     const rawBenchmarks = await vectorSearch.searchBenchmarks({
@@ -277,14 +277,14 @@ async function benchmarkRagNode(state) {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// AGENT 5 — Heatmap Analyzer
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// AGENT 5 â€” Heatmap Analyzer
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 async function heatmapAnalyzerNode(state) {
   const threadId = state.thread_id;
   const pageKeys = Object.keys(state.scraped_pages ?? {});
 
-  sse.emit(threadId, 'stage', { stage: 'analyzing_heatmaps', message: 'Loading heatmap data…', progress: 50 });
+  sse.emit(threadId, 'stage', { stage: 'analyzing_heatmaps', message: 'Loading heatmap dataâ€¦', progress: 50 });
 
   const heatmapData = {};
 
@@ -298,7 +298,7 @@ async function heatmapAnalyzerNode(state) {
     if (!existing) {
       sse.emit(threadId, 'stage', {
         stage: 'predicting_heatmap',
-        message: `Predicting attention zones for ${pageKey}…`,
+        message: `Predicting attention zones for ${pageKey}â€¦`,
         progress: 51,
       });
       try {
@@ -351,8 +351,8 @@ async function heatmapAnalyzerNode(state) {
   });
 
   const heatmapContext = lines.length > 0
-    ? `USER ATTENTION DATA (time-weighted — first 3s = 4× priority):\n\n${lines.join('\n\n')}\n\n` +
-    `⚠️ Place CTAs/key content in identified hot zones. First-3-second attention = highest conversion potential.`
+    ? `USER ATTENTION DATA (time-weighted â€” first 3s = 4Ã— priority):\n\n${lines.join('\n\n')}\n\n` +
+    `âš ï¸ Place CTAs/key content in identified hot zones. First-3-second attention = highest conversion potential.`
     : 'No heatmap data available. Using design-law predictions only.';
 
   sse.emit(threadId, 'stage', { stage: 'heatmaps_loaded', progress: 55 });
@@ -363,9 +363,9 @@ async function heatmapAnalyzerNode(state) {
   };
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// AGENT 6 — Per-Page Analyzer
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// AGENT 6 â€” Per-Page Analyzer
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 async function pageAnalyzerNode(state) {
   const threadId = state.thread_id;
   const pages = state.pages_to_analyze ?? [];
@@ -383,7 +383,7 @@ async function pageAnalyzerNode(state) {
     const progress = 55 + Math.round((i / pages.length) * 25);
     sse.emit(threadId, 'stage', {
       stage: 'analyzing_pages',
-      message: `Analysing ${pageKey} (${i + 1}/${pages.length})…`,
+      message: `Analysing ${pageKey} (${i + 1}/${pages.length})â€¦`,
       progress,
       current_page: pageKey,
     });
@@ -424,7 +424,7 @@ async function pageAnalyzerNode(state) {
     }
   }
 
-  sse.emit(threadId, 'stage', { stage: 'cross_page_check', message: 'Checking cross-page consistency…', progress: 82 });
+  sse.emit(threadId, 'stage', { stage: 'cross_page_check', message: 'Checking cross-page consistencyâ€¦', progress: 82 });
 
   const pageSummaries = Object.entries(pageAnalyses)
     .map(([pk, a]) => `**${pk}**: CTA="${a.cta_style ?? '?'}", color="${a.primary_color ?? '?'}", font="${a.font_system ?? '?'}"`)
@@ -437,9 +437,9 @@ async function pageAnalyzerNode(state) {
 
   const discrepancies = safeParseJSON(crossResult.content, { discrepancies: [] });
 
-  const scoresSummary = Object.entries(pageAnalyses).map(([pk, a]) => `**${pk}** — ${a.scores?.overall ?? '?'}/100`).join(' · ');
+  const scoresSummary = Object.entries(pageAnalyses).map(([pk, a]) => `**${pk}** â€” ${a.scores?.overall ?? '?'}/100`).join(' Â· ');
   const topRecs = Object.entries(pageAnalyses)
-    .flatMap(([pk, a]) => (a.recommendations ?? []).slice(0, 2).map(r => `• **${pk}** — ${r.title} _(${r.impact} impact)_`))
+    .flatMap(([pk, a]) => (a.recommendations ?? []).slice(0, 2).map(r => `â€¢ **${pk}** â€” ${r.title} _(${r.impact} impact)_`))
     .slice(0, 6);
 
   return {
@@ -449,16 +449,16 @@ async function pageAnalyzerNode(state) {
     next_node: 'code_enhancer',
     current_stage: 'enhancing_code',
     messages: [new AIMessage(
-      `📊 **Design Analysis Complete**\n\n**Scores:** ${scoresSummary}\n\n` +
+      `ðŸ“Š **Design Analysis Complete**\n\n**Scores:** ${scoresSummary}\n\n` +
       `**${discrepancies.discrepancies?.length ?? 0} cross-page inconsistencies found**\n\n` +
-      `**Top Recommendations:**\n${topRecs.join('\n')}\n\nGenerating enhanced HTML/CSS for each page…`
+      `**Top Recommendations:**\n${topRecs.join('\n')}\n\nGenerating enhanced HTML/CSS for each pageâ€¦`
     )],
   };
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// AGENT 7 — Code Enhancer
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// AGENT 7 â€” Code Enhancer
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 async function codeEnhancerNode(state) {
   const threadId = state.thread_id;
   const pages = Object.keys(state.scraped_pages ?? {});
@@ -471,7 +471,7 @@ async function codeEnhancerNode(state) {
     if (!pageData || !analysis) continue;
 
     const progress = 85 + Math.round((i / pages.length) * 12);
-    sse.emit(threadId, 'stage', { stage: 'enhancing_code', message: `Enhancing ${pageKey}…`, progress, current_page: pageKey });
+    sse.emit(threadId, 'stage', { stage: 'enhancing_code', message: `Enhancing ${pageKey}â€¦`, progress, current_page: pageKey });
 
     const result = await getLLM().invoke([
       new SystemMessage(CODE_ENHANCEMENT_SYSTEM),
@@ -501,16 +501,16 @@ async function codeEnhancerNode(state) {
     current_stage: 'done',
     stage_progress: 100,
     messages: [new AIMessage(
-      `✨ **Enhancement Complete!**\n\n${pages.map(pk => `• **${pk}** — enhanced HTML + CSS ready`).join('\n')}\n\n` +
-      `You can now:\n• **Download** the enhanced HTML/CSS per page from the Analysis Panel\n` +
-      `• **Ask me to refine** anything: _"Make the homepage CTA more prominent"_`
+      `âœ¨ **Enhancement Complete!**\n\n${pages.map(pk => `â€¢ **${pk}** â€” enhanced HTML + CSS ready`).join('\n')}\n\n` +
+      `You can now:\nâ€¢ **Download** the enhanced HTML/CSS per page from the Analysis Panel\n` +
+      `â€¢ **Ask me to refine** anything: _"Make the homepage CTA more prominent"_`
     )],
   };
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// AGENT 8 — General Chat (FULL POWER — analysis + code changes + comparisons)
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// AGENT 8 â€” General Chat (FULL POWER â€” analysis + code changes + comparisons)
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 async function generalChatNode(state) {
   const threadId = state.thread_id;
   const last = state.messages[state.messages.length - 1];
@@ -529,7 +529,7 @@ async function generalChatNode(state) {
 
   if (Object.keys(state.scraped_pages ?? {}).length > 0) {
     const pageList = Object.entries(state.scraped_pages).map(([pk, pd]) =>
-      `• ${pk} (${pd.page_type}): ${pd.element_count} elements, CTA=${pd.has_cta}, screenshot=${pd.screenshot_url}`
+      `â€¢ ${pk} (${pd.page_type}): ${pd.element_count} elements, CTA=${pd.has_cta}, screenshot=${pd.screenshot_url}`
     ).join('\n');
     ctx.push(`SCRAPED PAGES:\n${pageList}`);
 
@@ -544,7 +544,7 @@ async function generalChatNode(state) {
 
   if (Object.keys(state.page_analyses ?? {}).length > 0) {
     const scoreLines = Object.entries(state.page_analyses).map(([pk, a]) =>
-      `• ${pk}: overall=${a.scores?.overall}/100, fitts=${a.scores?.fitts}, gestalt=${a.scores?.gestalt}, hierarchy=${a.scores?.hierarchy}`
+      `â€¢ ${pk}: overall=${a.scores?.overall}/100, fitts=${a.scores?.fitts}, gestalt=${a.scores?.gestalt}, hierarchy=${a.scores?.hierarchy}`
     ).join('\n');
     ctx.push(`DESIGN SCORES:\n${scoreLines}`);
 
@@ -567,28 +567,28 @@ async function generalChatNode(state) {
 
   if (Object.keys(state.heatmap_data ?? {}).length > 0) {
     const hmLines = Object.entries(state.heatmap_data).map(([pk, h]) =>
-      `• ${pk}: ${h.context?.substring(0, 150)}`
+      `â€¢ ${pk}: ${h.context?.substring(0, 150)}`
     ).join('\n');
     ctx.push(`HEATMAP DATA:\n${hmLines}`);
   }
 
   if (Object.keys(state.enhanced_pages ?? {}).length > 0) {
     const enh = Object.keys(state.enhanced_pages).join(', ');
-    ctx.push(`ENHANCED PAGES READY: ${enh} — user can ask to refine or download`);
+    ctx.push(`ENHANCED PAGES READY: ${enh} â€” user can ask to refine or download`);
   }
 
   // Check if this is a code implementation request (from approved recommendation card)
   const isImplementationTask = state.design_prefs?.implementation_task;
   const isCodeRequest = /\b(implement|apply|generate|write|create|build|code|html|css|enhance|fix|change|update|modify|improve)\b/i.test(userMsg);
 
-  const systemPrompt = `You are Aura AI — a full-stack UI/UX design expert and frontend engineer.
+  const systemPrompt = `You are Aura AI â€” a full-stack UI/UX design expert and frontend engineer.
 
 You have FULL CAPABILITIES:
-1. ANALYSE — explain scores, what's wrong, why, which design law is violated
-2. COMPARE — compare the site against benchmarks (Linear, Stripe, etc.) and cite specific differences  
-3. CODE — generate complete enhanced HTML/CSS for any page or element
-4. IMPLEMENT — take approved recommendation cards and generate the actual code changes
-5. ADVISE — suggest what to change next, prioritise fixes, estimate impact
+1. ANALYSE â€” explain scores, what's wrong, why, which design law is violated
+2. COMPARE â€” compare the site against benchmarks (Linear, Stripe, etc.) and cite specific differences  
+3. CODE â€” generate complete enhanced HTML/CSS for any page or element
+4. IMPLEMENT â€” take approved recommendation cards and generate the actual code changes
+5. ADVISE â€” suggest what to change next, prioritise fixes, estimate impact
 
 DESIGN LAWS YOU APPLY: Hick's Law, Fitts's Law, Gestalt Principles, F-Pattern, Visual Hierarchy, Rule of Thirds, Miller's Law, Contrast, Typography.
 
@@ -600,7 +600,7 @@ WHEN GENERATING CODE:
 
 ${isImplementationTask ? `\nIMPLEMENTATION TASK FROM APPROVED CARD:\n${JSON.stringify(isImplementationTask, null, 2)}\n\nImplement this specific change as clean HTML/CSS.` : ''}
 
-${ctx.length > 0 ? `\n== CURRENT WEBSITE CONTEXT ==\n${ctx.join('\n\n')}\n==========================` : 'No website loaded yet — ask the user for a URL to analyse.'}
+${ctx.length > 0 ? `\n== CURRENT WEBSITE CONTEXT ==\n${ctx.join('\n\n')}\n==========================` : 'No website loaded yet â€” ask the user for a URL to analyse.'}
 
 Be conversational, specific, and evidence-based. Reference actual DOM elements and real examples. Format responses with markdown.`;
 
@@ -623,9 +623,9 @@ Be conversational, specific, and evidence-based. Reference actual DOM elements a
   };
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Prompt builders
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function buildPageAnalysisPrompt({ pageKey, pageData, state }) {
   return `
@@ -663,7 +663,7 @@ PAGE: ${pageKey}
 STYLE: ${state.design_preferences?.style ?? 'modern'}, PRIORITY: ${state.design_preferences?.priority ?? 'all'}
 
 HIGH-IMPACT FIXES:
-${highImpact.map((r, i) => `${i + 1}. [${r.law}] ${r.description} → ${r.fix_hint}`).join('\n') || 'None'}
+${highImpact.map((r, i) => `${i + 1}. [${r.law}] ${r.description} â†’ ${r.fix_hint}`).join('\n') || 'None'}
 
 CROSS-PAGE CONSISTENCY FIXES:
 ${crossFixes.map(d => `- ${d.type}: ${d.fix}`).join('\n') || 'None'}
@@ -689,7 +689,7 @@ const PAGE_ANALYSIS_SYSTEM =
   `You are a world-class UI/UX design expert and CRO specialist.
 Analyse web pages against: Hick's Law, Fitts's Law, Gestalt Principles, F-Pattern, Visual Hierarchy, Rule of Thirds, Miller's Law.
 Score honestly (85+ = genuinely excellent). Base findings on DOM evidence.
-When heatmap data is provided, weight findings accordingly — behavioural data > theory.
+When heatmap data is provided, weight findings accordingly â€” behavioural data > theory.
 Output ONLY valid JSON. No commentary outside the JSON.`;
 
 const CODE_ENHANCEMENT_SYSTEM =
@@ -709,3 +709,5 @@ module.exports = {
   codeEnhancerNode,
   generalChatNode,
 };
+
+

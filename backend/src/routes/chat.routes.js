@@ -1,4 +1,4 @@
-// src/routes/chat.routes.js
+﻿// src/routes/chat.routes.js
 // REST + SSE streaming endpoints for the chatbot
 
 const express     = require('express');
@@ -10,6 +10,7 @@ const chatMemory  = require('../memory/chatMemory');
 const pool        = require('../db/pool');
 const { authMiddleware } = require('../middleware/auth.middleware');
 const scraper     = require('../tools/scraper.tool');
+const { validatePublicUrl } = require('../utils/validateUrl');
 
 const router = express.Router();
 
@@ -22,20 +23,8 @@ const chatLimiter = rateLimit({
   legacyHeaders:   false,
 });
 
-// SSRF-safe URL validator
-function validatePublicUrl(raw) {
-  if (!raw || typeof raw !== 'string') return null;
-  try {
-    const p = new URL(raw.trim().substring(0, 2048));
-    if (!['http:', 'https:'].includes(p.protocol)) return null;
-    const h = p.hostname.toLowerCase();
-    if (['localhost','127.0.0.1','0.0.0.0','::1'].includes(h)) return null;
-    if (/^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.)/.test(h)) return null;
-    return p.href;
-  } catch { return null; }
-}
 
-// ── POST /chat/sessions ── Create new session (optionally with site URL) ──────
+// â”€â”€ POST /chat/sessions â”€â”€ Create new session (optionally with site URL) â”€â”€â”€â”€â”€â”€
 router.post('/sessions', authMiddleware, async (req, res) => {
   const { siteUrl: rawSiteUrl } = req.body ?? {};
   const siteUrl = rawSiteUrl ? validatePublicUrl(rawSiteUrl) : null;
@@ -80,7 +69,7 @@ router.post('/sessions', authMiddleware, async (req, res) => {
   }
 });
 
-// ── GET /chat/sessions ── List user's sessions ─────────────────────────────────
+// â”€â”€ GET /chat/sessions â”€â”€ List user's sessions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/sessions', authMiddleware, async (req, res) => {
   try {
     const sessions = await chatMemory.listSessions(req.user.id);
@@ -90,7 +79,7 @@ router.get('/sessions', authMiddleware, async (req, res) => {
   }
 });
 
-// ── GET /chat/sessions/:threadId ── Get session + messages ─────────────────────
+// â”€â”€ GET /chat/sessions/:threadId â”€â”€ Get session + messages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/sessions/:threadId', authMiddleware, async (req, res) => {
   try {
     const session = await chatMemory.getSession(req.params.threadId, req.user.id);
@@ -101,7 +90,7 @@ router.get('/sessions/:threadId', authMiddleware, async (req, res) => {
   }
 });
 
-// ── DELETE /chat/sessions/:sessionId ── Delete a session ──────────────────────
+// â”€â”€ DELETE /chat/sessions/:sessionId â”€â”€ Delete a session â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.delete('/sessions/:sessionId', authMiddleware, async (req, res) => {
   try {
     await chatMemory.deleteSession(req.params.sessionId, req.user.id);
@@ -111,7 +100,7 @@ router.delete('/sessions/:sessionId', authMiddleware, async (req, res) => {
   }
 });
 
-// ── GET /chat/sessions/:sessionId/results ── Download analysis results ─────────
+// â”€â”€ GET /chat/sessions/:sessionId/results â”€â”€ Download analysis results â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/sessions/:sessionId/results', authMiddleware, async (req, res) => {
   try {
     const results = await chatMemory.getAnalysisResults(req.params.sessionId, req.user.id);
@@ -122,7 +111,7 @@ router.get('/sessions/:sessionId/results', authMiddleware, async (req, res) => {
   }
 });
 
-// ── GET /chat/sessions/:threadId/state ── Current graph state ─────────────────
+// â”€â”€ GET /chat/sessions/:threadId/state â”€â”€ Current graph state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/sessions/:threadId/state', authMiddleware, async (req, res) => {
   try {
     const session = await chatMemory.getSession(req.params.threadId, req.user.id);
@@ -145,18 +134,18 @@ router.get('/sessions/:threadId/state', authMiddleware, async (req, res) => {
   }
 });
 
-// ── POST /chat/message ── Main SSE streaming endpoint ─────────────────────────
+// â”€â”€ POST /chat/message â”€â”€ Main SSE streaming endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 /**
  * Body: { thread_id, session_id, message, is_resume? }
  *
  * SSE events emitted:
- *   stage            — { stage, message, progress, current_page }
- *   node_update      — { node, stage, progress }
- *   token            — { token }              (streamed text chunks)
- *   assistant_message — { content, node }     (complete agent messages)
- *   user_message     — { content }            (echo)
- *   done             — { thread_id }
- *   error            — { error }
+ *   stage            â€” { stage, message, progress, current_page }
+ *   node_update      â€” { node, stage, progress }
+ *   token            â€” { token }              (streamed text chunks)
+ *   assistant_message â€” { content, node }     (complete agent messages)
+ *   user_message     â€” { content }            (echo)
+ *   done             â€” { thread_id }
+ *   error            â€” { error }
  */
 router.post('/message', authMiddleware, chatLimiter, async (req, res) => {
   const { thread_id, session_id, message, is_resume = false } = req.body;
@@ -174,7 +163,7 @@ router.post('/message', authMiddleware, chatLimiter, async (req, res) => {
     return res.status(403).json({ success: false, error: 'Session not found or access denied' });
   }
 
-  // ── Set up SSE ─────────────────────────────────────────────────────────────
+  // â”€â”€ Set up SSE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   res.setHeader('Content-Type',       'text/event-stream');
   res.setHeader('Cache-Control',      'no-cache');
   res.setHeader('Connection',         'keep-alive');
@@ -277,3 +266,5 @@ router.post('/message', authMiddleware, chatLimiter, async (req, res) => {
 });
 
 module.exports = router;
+
+
