@@ -7,25 +7,25 @@ import { cn } from "@/lib/utils";
 
 const faqs = [
   {
-    question: "What exactly is AuraDesign AI?",
-    answer: "AuraDesign AI is a next-generation design platform that combines generative AI with professional 3D rendering. It allows creators to build cinematic-quality web interfaces and digital products in a fraction of the time using natural language and intelligent layout algorithms."
-  },
-  {
-    question: "How does the AI design process work?",
-    answer: "Our engine analyzes your brand identity and requirements to generate unique, functional design systems. It doesn't just copy templates; it understands spatial hierarchy, color theory, and user psychology to create bespoke experiences."
-  },
-  {
-    question: "Can I export my designs to other tools?",
-    answer: "Yes! AuraDesign supports seamless exports to industry standards including Figma, React/Next.js codebases, and Spline for 3D assets. Your assets are fully editable and ready for production."
-  },
-  {
-    question: "Do you offer custom enterprise solutions?",
-    answer: "Absolutely. For large teams, we offer dedicated infrastructure, custom-trained AI models based on your brand guidelines, and priority rendering queues for ultra-fast workflows."
-  },
-  {
-    question: "Is there a free trial available?",
-    answer: "We offer a 'Creative Starter' plan that's free forever, allowing you to explore the 3D scene builder and basic AI layout tools. Professional features and high-res exports are available under our premium tiers."
-  }
+  question: "Does AuraDesign collect personal user data?",
+  answer:
+    "No. AuraDesign focuses on behavioral patterns and interface interactions rather than personal identity. The platform analyzes aggregated engagement signals like click patterns and scroll depth without collecting personally identifiable information."
+},
+{
+  question: "How does AuraDesign protect user privacy?",
+  answer:
+    "AuraDesign is designed with a privacy-first architecture. All analytics are processed using anonymized and aggregated data so individual users cannot be identified. The platform follows modern data protection principles used in responsible analytics systems."
+},
+{
+  question: "Is AuraDesign compliant with data protection standards?",
+  answer:
+    "AuraDesign is built with privacy regulations in mind, including principles aligned with GDPR and modern data protection frameworks. We minimize data collection, anonymize behavioral insights, and ensure data is used only for improving user experience."
+},
+{
+  question: "Can website owners control what data AuraDesign analyzes?",
+  answer:
+    "Yes. Website owners have full control over what analytics AuraDesign processes. The platform allows teams to limit tracking scope, disable certain analytics modules, and ensure their UX analysis aligns with their privacy policies."
+}
 ];
 
 const FAQItem = ({ question, answer, isOpen, onClick }: { question: string, answer: string, isOpen: boolean, onClick: () => void }) => {
