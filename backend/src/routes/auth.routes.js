@@ -3,6 +3,7 @@ const express    = require('express');
 const bcrypt     = require('bcrypt');
 const jwt        = require('jsonwebtoken');
 const rateLimit  = require('express-rate-limit');
+const { OAuth2Client } = require('google-auth-library');
 const router     = express.Router();
 const { supabase } = require('../db/pool');
 const { authMiddleware } = require('../middleware/auth.middleware');
@@ -93,6 +94,61 @@ router.post('/login', authLimiter, async (req, res) => {
   } catch (err) {
     console.error('Login error:', err.message);
     return res.status(500).json({ success: false, error: 'Login failed' });
+  }
+});
+
+// ── POST /auth/google ─────────────────────────────────────────────────────────
+router.post('/google', authLimiter, async (req, res) => {
+  const { credential } = req.body;
+  if (!credential)
+    return res.status(400).json({ success: false, error: 'Google credential required' });
+
+  try {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const client = new OAuth2Client(clientId);
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: clientId,
+    });
+    const payload = ticket.getPayload();
+    const { email, name, sub: googleId, picture } = payload;
+
+    if (!email)
+      return res.status(400).json({ success: false, error: 'Unable to retrieve email from Google' });
+
+    // Find or create user
+    let { data: user } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email.toLowerCase().trim())
+      .maybeSingle();
+
+    if (!user) {
+      // Create new user (no password needed for Google auth)
+      const dummyHash = await bcrypt.hash(`google_oauth_${googleId}`, 12);
+      const { data: newUser, error } = await supabase
+        .from('users')
+        .insert({
+          name: name || email.split('@')[0],
+          email: email.toLowerCase().trim(),
+          password_hash: dummyHash,
+        })
+        .select('id, name, email, plan')
+        .single();
+
+      if (error)
+        return res.status(500).json({ success: false, error: error.message });
+
+      user = newUser;
+    }
+
+    const token = signToken(user.id);
+    res.cookie('aura_token', token, COOKIE_OPTS);
+    const { password_hash: _, ...safeUser } = user;
+    return res.json({ success: true, data: { user: safeUser } });
+  } catch (err) {
+    console.error('Google auth error:', err.message);
+    return res.status(401).json({ success: false, error: 'Google authentication failed' });
   }
 });
 

@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./index.html', './src/**/*.{js,jsx}'],
+  content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
   theme: {
     extend: {
       colors: {
@@ -35,12 +35,14 @@ export default {
         'slide-up':   'slideUp 0.3s cubic-bezier(0.16,1,0.3,1) forwards',
         'glow-pulse': 'glowPulse 2s ease-in-out infinite',
         'cursor-blink': 'cursorBlink 1s step-end infinite',
+        'spotlight': 'spotlight 2s ease 0.75s 1 forwards',
       },
       keyframes: {
         fadeIn:    { from: { opacity: 0 }, to: { opacity: 1 } },
         slideUp:   { from: { opacity: 0, transform: 'translateY(12px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
         glowPulse: { '0%,100%': { opacity: 0.6 }, '50%': { opacity: 1 } },
         cursorBlink: { '0%,100%': { opacity: 1 }, '50%': { opacity: 0 } },
+        spotlight: { '0%': { opacity: 0, transform: 'translate(-72%, -62%) scale(0.5)' }, '100%': { opacity: 1, transform: 'translate(-50%, -40%) scale(1)' } },
       },
       boxShadow: {
         'glow-sm':  '0 0 12px rgba(124,92,252,0.3)',

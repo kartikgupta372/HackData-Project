@@ -49,6 +49,7 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/survey/:token" element={<SurveyPage />} />
         <Route path="/app" element={<ProtectedRoute><AppPage /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute><AppPage /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   )

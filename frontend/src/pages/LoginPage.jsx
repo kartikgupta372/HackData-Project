@@ -5,6 +5,7 @@ import { Sparkles, Eye, EyeOff } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
+import GoogleIdentityButton from '../components/auth/GoogleIdentityButton'
 
 export default function LoginPage() {
   const [email, setEmail]       = useState('')
@@ -12,7 +13,7 @@ export default function LoginPage() {
   const [showPw, setShowPw]     = useState(false)
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
-  const { login }               = useAuthStore()
+  const { login, setAuthUser } = useAuthStore()
   const nav                     = useNavigate()
 
   const handleSubmit = async (e) => {
@@ -90,6 +91,28 @@ export default function LoginPage() {
               Sign In
             </Button>
           </form>
+
+          <div className="flex items-center gap-3 my-4">
+            <div className="flex-1 h-px bg-aura-border" />
+            <span className="text-xs text-aura-faint">OR</span>
+            <div className="flex-1 h-px bg-aura-border" />
+          </div>
+
+          <div className="flex justify-center">
+            <GoogleIdentityButton
+              onSuccess={(user) => {
+                setError('')
+                setAuthUser(user)
+                nav('/dashboard', { replace: true })
+              }}
+              onError={(message) => setError(message || 'Google login failed')}
+              text="continue_with"
+              theme="filled_black"
+              size="large"
+              shape="pill"
+              width={320}
+            />
+          </div>
         </div>
 
         <p className="text-center text-xs text-aura-muted mt-4">
