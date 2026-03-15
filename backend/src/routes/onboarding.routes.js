@@ -1,15 +1,17 @@
 ﻿// src/routes/onboarding.routes.js — Fixed: URL validation (SSRF), background heatmap
 const express  = require('express');
+const path     = require('path');
 const router   = express.Router();
 const { supabase } = require('../db/pool');
 const { authMiddleware } = require('../middleware/auth.middleware');
 const scraper      = require('../tools/scraper.tool');
 const heatmapTool  = require('../tools/heatmap.tool');
+const upload       = require('../middleware/upload.middleware');
 const { validatePublicUrl } = require('../utils/validateUrl');
 
 // ── POST /onboarding/submit ───────────────────────────────────────────────────
 router.post('/submit', authMiddleware, async (req, res) => {
-  const { intent, url, domain, other_info, run_heatmap } = req.body;
+  const { intent, url, domain, style_preference, other_info, document_urls, run_heatmap } = req.body;
   if (!domain) return res.status(400).json({ success: false, error: 'domain is required' });
 
   // FIX: validate URL before using it (SSRF protection)
@@ -21,6 +23,8 @@ router.post('/submit', authMiddleware, async (req, res) => {
 
   const onboardingData = {
     intent, url: cleanUrl, domain,
+    style_preference: style_preference ?? null,
+    document_urls: Array.isArray(document_urls) ? document_urls : [],
     other_info: other_info?.substring(0, 1000) ?? null,
     submitted_at: new Date().toISOString(),
   };
@@ -51,6 +55,29 @@ router.post('/submit', authMiddleware, async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+// ── POST /onboarding/upload-documents ────────────────────────────────────────
+// Accepts brand assets, guidelines, screenshots (max 5 files, 10MB each)
+// Returns array of accessible URLs to be stored with onboarding_data
+router.post('/upload-documents', authMiddleware,
+  (req, res, next) => {
+    upload.array('documents', 5)(req, res, (err) => {
+      if (err) return res.status(400).json({ success: false, error: err.message });
+      next();
+    });
+  },
+  async (req, res) => {
+    if (!req.files?.length) return res.status(400).json({ success: false, error: 'No files uploaded' });
+    const backendUrl = process.env.BACKEND_URL ?? `http://localhost:${process.env.PORT ?? 3001}`;
+    const files = req.files.map(f => ({
+      name:         f.originalname,
+      url:          `${backendUrl}/uploads/onboarding/${f.filename}`,
+      size:         f.size,
+      mimetype:     f.mimetype,
+    }));
+    res.json({ success: true, data: { files, count: files.length } });
+  }
+);
 
 // ── GET /onboarding/status ────────────────────────────────────────────────────
 router.get('/status', authMiddleware, async (req, res) => {

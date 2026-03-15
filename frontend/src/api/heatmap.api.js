@@ -9,7 +9,9 @@ export const heatmapApi = {
   screenshot:     (data)             => api.post('/heatmap/screenshot', data),
   // Surveys
   createSurvey:   (data)             => api.post('/heatmap/create-survey', data),
-  getSurveys:     (siteUrl)          => api.get('/heatmap/surveys', { params: { siteUrl } }),
+  // BUG 9 FIX: pass since=today by default so the list is IST-date-aware.
+  // Pass since=null explicitly to get all-time surveys.
+  getSurveys:     (siteUrl, since = 'today') => api.get('/heatmap/surveys', { params: { siteUrl, since } }),
   getSurvey:      (token)            => api.get(`/heatmap/survey/${token}`),
   getSurveyResults:(token)           => api.get(`/heatmap/survey/${token}/results`),
   computeHeatmap: (token)            => api.post(`/heatmap/compute/${token}`),

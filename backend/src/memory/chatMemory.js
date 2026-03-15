@@ -1,4 +1,4 @@
-﻿// src/memory/chatMemory.js — Fixed: safe URL parsing, no crash on malformed URLs
+// src/memory/chatMemory.js — Fixed: safe URL parsing, no crash on malformed URLs
 const pool    = require('../db/pool');
 const { v4: uuidv4 } = require('uuid');
 
@@ -6,13 +6,18 @@ function safeHostname(url) {
   try { return new URL(url).hostname; } catch { return url.substring(0, 40); }
 }
 
-async function createSession(userId, siteUrl = null) {
+async function createSession(userId, siteUrl = null, formData = {}) {
   const threadId = `aura_${uuidv4()}`;
   const title    = siteUrl ? `Analysis: ${safeHostname(siteUrl)}` : 'New Analysis';
+  const designPrefs = {
+    domain:     formData.domain     || null,
+    intent:     formData.intent     || null,
+    other_info: formData.other_info || null,
+  };
   const { rows } = await pool.query(
-    `INSERT INTO chat_sessions (user_id, thread_id, title, status, site_url)
-     VALUES ($1, $2, $3, 'active', $4) RETURNING *`,
-    [userId, threadId, title, siteUrl ?? null]
+    `INSERT INTO chat_sessions (user_id, thread_id, title, status, site_url, site_type, design_prefs)
+     VALUES ($1, $2, $3, 'active', $4, $5, $6) RETURNING *`,
+    [userId, threadId, title, siteUrl ?? null, formData.domain || null, JSON.stringify(designPrefs)]
   );
   return rows[0];
 }

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, MessageSquare, Trash2, ChevronLeft, ChevronRight, Settings, LogOut, Sparkles } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
@@ -37,18 +37,12 @@ export default function Sidebar() {
   }, [qc])
   const sessions = sessionsData ?? []
 
-  const handleNewChat = async () => {
-    // Use the onboarded site URL so the AI has context from the start
-    const siteUrl = onboardingData?.url ?? null
-    const res = await chatApi.createSession(siteUrl)
-    const session = res.data.data.session
-    qc.invalidateQueries({ queryKey: ['sessions'] })
-    setActiveSession(session)
+  const handleNewChat = () => {
+    // Clear current session so ChatView shows the URL prompt modal
+    useChatStore.getState().clearSession()
     setActiveFeature('chat')
-    // Tell ChatView to show the URL scraping message
-    if (siteUrl) {
-      window.dispatchEvent(new CustomEvent('aura:session-created', { detail: session }))
-    }
+    // Tell ChatView to open the URL modal for a fresh session
+    window.dispatchEvent(new CustomEvent('aura:request-new-session'))
   }
 
   const handleSelectSession = async (s) => {
@@ -182,9 +176,11 @@ export default function Sidebar() {
 }
 
 function SessionItem({ session, isActive, collapsed, isDeleting, onSelect, onDelete }) {
-  const label = session.site_url
-    ? new URL(session.site_url).hostname
-    : session.title || 'New Analysis'
+  // Fix C: new URL(null) throws — guard with try/catch
+  let label = session.title || 'New Analysis'
+  if (session.site_url) {
+    try { label = new URL(session.site_url).hostname } catch { label = session.site_url }
+  }
 
   return (
     <button
@@ -202,13 +198,12 @@ function SessionItem({ session, isActive, collapsed, isDeleting, onSelect, onDel
         <>
           <span className="truncate flex-1 text-xs">{label}</span>
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={onDelete}
-              disabled={isDeleting}
-              className="p-0.5 rounded text-aura-faint hover:text-aura-error transition-colors"
+            <div
+              onClick={isDeleting ? undefined : onDelete}
+              className="p-0.5 rounded text-aura-faint hover:text-aura-error transition-colors cursor-pointer"
             >
               <Trash2 className="w-3 h-3" />
-            </button>
+            </div>
           </div>
         </>
       )}

@@ -1,4 +1,4 @@
-﻿// src/routes/auth.routes.js — Fixed: rate limiting on login/register, no user enumeration
+// src/routes/auth.routes.js — Fixed: rate limiting on login/register, no user enumeration
 const express    = require('express');
 const bcrypt     = require('bcrypt');
 const jwt        = require('jsonwebtoken');

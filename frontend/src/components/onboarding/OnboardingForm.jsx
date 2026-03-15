@@ -2,7 +2,7 @@
 // Single-page onboarding form — shown as a full overlay on first visit to /app
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Sparkles, Globe, Loader2, CheckCircle2, BarChart2 } from 'lucide-react'
+import { Sparkles, Globe, Loader2, CheckCircle2, BarChart2, Paperclip, X as XIcon } from 'lucide-react'
 import { onboardingApi } from '../../api/onboarding.api'
 import { useAuthStore } from '../../store/authStore'
 
@@ -28,12 +28,24 @@ const INTENTS = [
   { value: 'full_audit',           label: 'Full design audit' },
 ]
 
+const STYLES = [
+  { value: 'professional', label: 'Professional', emoji: '💼' },
+  { value: 'minimal',      label: 'Minimal',      emoji: '□' },
+  { value: 'modern',       label: 'Modern',       emoji: '⚡' },
+  { value: 'playful',      label: 'Playful / Funky', emoji: '🎈' },
+  { value: 'premium',      label: 'Premium',      emoji: '💎' },
+  { value: 'corporate',    label: 'Corporate',    emoji: '🏢' },
+]
+
 export default function OnboardingForm({ onComplete }) {
   const { setOnboardingCompleted } = useAuthStore()
   const [url, setUrl]               = useState('')
   const [domain, setDomain]         = useState('')
   const [intent, setIntent]         = useState('')
+  const [stylePreference, setStylePreference] = useState('')
   const [otherInfo, setOtherInfo]   = useState('')
+  const [uploadedFiles, setUploadedFiles] = useState([])  // { name, url, size }
+  const [uploading, setUploading]   = useState(false)
   const [runHeatmap, setRunHeatmap] = useState(false)
   const [errors, setErrors]         = useState({})
   const [loading, setLoading]       = useState(false)
@@ -67,7 +79,13 @@ export default function OnboardingForm({ onComplete }) {
     if (Object.keys(v).length) { setErrors(v); return }
     setErrors({}); setSubmitError(''); setLoading(true)
     try {
-      const res = await onboardingApi.submit({ intent, url: url.trim(), domain, other_info: otherInfo, run_heatmap: runHeatmap })
+      const res = await onboardingApi.submit({
+        intent, url: url.trim(), domain,
+        style_preference: stylePreference,
+        other_info: otherInfo,
+        document_urls: uploadedFiles.map(f => f.url),
+        run_heatmap: runHeatmap,
+      })
       const data = res.data.data.onboarding_data
       setOnboardingCompleted(data)
       setDone(true)
@@ -76,6 +94,25 @@ export default function OnboardingForm({ onComplete }) {
       setSubmitError(err.response?.data?.error || 'Something went wrong. Please try again.')
     } finally { setLoading(false) }
   }
+
+  const handleFileUpload = async (e) => {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      files.forEach(f => fd.append('documents', f))
+      const res = await onboardingApi.uploadDocuments(fd)
+      setUploadedFiles(prev => [...prev, ...res.data.data.files])
+    } catch (err) {
+      setSubmitError(err.response?.data?.error || 'File upload failed')
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  const removeFile = (url) => setUploadedFiles(prev => prev.filter(f => f.url !== url))
 
   if (done) return (
     <div className="fixed inset-0 z-50 bg-aura-void flex items-center justify-center">
@@ -166,6 +203,29 @@ export default function OnboardingForm({ onComplete }) {
               {errors.intent && <p className="mt-1 text-xs text-aura-error">{errors.intent}</p>}
             </div>
 
+            {/* Style preference — pill selector */}
+            <div>
+              <label className="block text-xs font-semibold text-aura-muted uppercase tracking-wide mb-2">
+                Desired Style <span className="text-aura-faint font-normal normal-case">(optional)</span>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {STYLES.map(s => (
+                  <button
+                    key={s.value}
+                    type="button"
+                    onClick={() => setStylePreference(prev => prev === s.value ? '' : s.value)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                      stylePreference === s.value
+                        ? 'bg-aura-accent/15 border-aura-accent/40 text-aura-accent'
+                        : 'bg-aura-elevated border-aura-border text-aura-muted hover:border-aura-accent/30 hover:text-aura-text'
+                    }`}
+                  >
+                    <span>{s.emoji}</span> {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Other info — optional textarea */}
             <div>
               <label className="block text-xs font-semibold text-aura-muted uppercase tracking-wide mb-1.5">
@@ -178,6 +238,46 @@ export default function OnboardingForm({ onComplete }) {
                 rows={3}
                 className="w-full bg-aura-elevated border border-aura-border focus:border-aura-accent rounded-lg px-3.5 py-2.5 text-sm text-aura-text placeholder:text-aura-faint outline-none resize-none transition-all"
               />
+            </div>
+
+            {/* Document upload */}
+            <div>
+              <label className="block text-xs font-semibold text-aura-muted uppercase tracking-wide mb-1.5">
+                Upload Assets <span className="text-aura-faint font-normal normal-case">(optional — brand guidelines, screenshots, docs)</span>
+              </label>
+              <label className={`flex items-center gap-2 px-3.5 py-2.5 rounded-lg border border-dashed cursor-pointer transition-all ${
+                uploading ? 'opacity-50 cursor-wait' : 'border-aura-border hover:border-aura-accent/40 hover:bg-aura-accent/5'
+              }`}>
+                {uploading
+                  ? <Loader2 className="w-4 h-4 text-aura-accent animate-spin" />
+                  : <Paperclip className="w-4 h-4 text-aura-faint" />}
+                <span className="text-xs text-aura-muted">
+                  {uploading ? 'Uploading…' : 'Click to attach files (images, PDF, DOCX — max 5 × 10MB)'}
+                </span>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.docx,.txt"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={handleFileUpload}
+                />
+              </label>
+              {uploadedFiles.length > 0 && (
+                <ul className="mt-2 flex flex-col gap-1.5">
+                  {uploadedFiles.map(f => (
+                    <li key={f.url} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-aura-elevated border border-aura-border">
+                      <Paperclip className="w-3 h-3 text-aura-accent shrink-0" />
+                      <span className="text-xs text-aura-text truncate flex-1">{f.name}</span>
+                      <span className="text-[10px] text-aura-faint shrink-0">{(f.size / 1024).toFixed(0)}KB</span>
+                      <button type="button" onClick={() => removeFile(f.url)}
+                        className="text-aura-faint hover:text-aura-error transition-colors shrink-0">
+                        <XIcon className="w-3 h-3" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             {/* Heatmap toggle */}
@@ -214,10 +314,12 @@ export default function OnboardingForm({ onComplete }) {
             <p className="text-xs text-aura-faint">You can update these settings anytime.</p>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || uploading}
               className="flex items-center gap-2 bg-aura-accent hover:bg-aura-accent-dim disabled:opacity-40 text-white text-sm font-medium px-6 py-2.5 rounded-lg transition-all"
             >
-              {loading ? (
+              {uploading ? (
+                <><Loader2 className="w-4 h-4 animate-spin" />Uploading files…</>
+              ) : loading ? (
                 <><Loader2 className="w-4 h-4 animate-spin" />{runHeatmap ? 'Setting up…' : 'Saving…'}</>
               ) : (
                 <><Sparkles className="w-4 h-4" />Start Analysing</>

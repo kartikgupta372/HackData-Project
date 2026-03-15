@@ -3,13 +3,16 @@ import { useChatStore } from '../../store/chatStore'
 import MessageBubble from './MessageBubble'
 import { motion, AnimatePresence } from 'framer-motion'
 
-export default function MessageList() {
+export default function MessageList({ onRetry }) {
   const { messages, isStreaming, streamingContent } = useChatStore()
   const bottomRef = useRef(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamingContent])
+
+  // Find the last user message content for retry
+  const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-6">
@@ -22,7 +25,10 @@ export default function MessageList() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.25, ease: [0.16,1,0.3,1] }}
             >
-              <MessageBubble message={msg} />
+              <MessageBubble
+                message={msg}
+                onRetry={msg.type === 'error' && msg.retryable ? () => onRetry?.(lastUserMsg?.content) : undefined}
+              />
             </motion.div>
           ))}
         </AnimatePresence>

@@ -4,6 +4,7 @@ import { useUIStore } from '../../store/uiStore'
 import { useAuthStore } from '../../store/authStore'
 import ChatView from '../chat/ChatView'
 import HeatmapView from '../heatmap/HeatmapView'
+import InsightsView from '../insights/InsightsView'
 import RecommendationsView from '../recommendations/RecommendationsView'
 import OnboardingForm from '../onboarding/OnboardingForm'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -11,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 const FEATURES = {
   chat:            ChatView,
   heatmap:         HeatmapView,
+  insights:        InsightsView,
   recommendations: RecommendationsView,
 }
 

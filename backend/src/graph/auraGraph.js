@@ -1,4 +1,6 @@
 // src/graph/auraGraph.js
+// BUG 4 FIX: This graph is fully DISABLED. Chat uses direct Gemini streaming in chat.routes.js.
+// File kept as reference only — streamGraph/getGraph throw if accidentally called.
 require('dotenv').config();
 
 const { StateGraph, END, START, MemorySaver } = require('@langchain/langgraph');

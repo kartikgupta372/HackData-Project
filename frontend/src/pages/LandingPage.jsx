@@ -6,17 +6,17 @@ import { useAuthStore } from '../store/authStore'
 
 const HOW_IT_WORKS = [
   { icon: Eye,      step: '01', title: 'Enter Your URL',        desc: 'Paste your website URL. Aura scrapes and analyses every page instantly.' },
-  { icon: Brain,    step: '02', title: 'AI Analyses Design',    desc: "Our 8-agent pipeline applies Fitts's Law, Gestalt, F-Pattern & more to your live site." },
+  { icon: Brain,    step: '02', title: 'AI Analyses Design',    desc: "Our AI pipeline applies Fitts's Law, Gestalt, F-Pattern & more to your live site." },
   { icon: BarChart2,step: '03', title: 'Heatmap Predictions',  desc: 'See where users actually look — AI-predicted or from real session data.' },
   { icon: Zap,      step: '04', title: 'Actionable Insights',  desc: 'Get scored recommendations and enhanced HTML/CSS, ready to ship.' },
 ]
 
 const FEATURES = [
-  { title: '8-Agent AI Pipeline',  desc: 'LangGraph orchestrates specialists: DOM intake, design analysis, code enhancement, heatmap, and more.' },
+  { title: 'AI Design Pipeline',   desc: 'Scrape, analyse, and enhance: DOM intake, design analysis, code enhancement, and heatmap insights in one flow.' },
   { title: 'RAG Benchmark Engine', desc: 'Compares your site against 50+ curated benchmarks (Stripe, Linear, Nobu) using semantic vector search.' },
   { title: 'Real Heatmaps',        desc: 'Time-weighted attention data: first 3 seconds count 4× more. Or use AI prediction for new sites.' },
   { title: 'Design Law Scoring',   desc: "Scores across Fitts, Hick's, Gestalt, F-Pattern, Typography, Contrast, Visual Hierarchy." },
-  { title: 'Enhanced Code Output', desc: 'Agents produce actual HTML/CSS fixes, not just advice. Download and deploy directly.' },
+  { title: 'Enhanced Code Output', desc: 'Get actual HTML/CSS fixes, not just advice. Download and deploy directly.' },
   { title: 'Privacy First',        desc: 'HttpOnly cookies, bcrypt passwords. Your data never leaves your account.' },
 ]
 
@@ -94,7 +94,7 @@ export default function LandingPage() {
             <span className="text-gradient">scientifically analysed</span>
           </h1>
           <p className="text-aura-muted text-lg md:text-xl max-w-xl mb-10 leading-relaxed">
-            Paste a URL. Aura's 8-agent AI pipeline audits every page against Fitts's Law, Gestalt, F-Pattern, heatmaps, and 50+ benchmark sites — then tells you exactly what to fix.
+            Paste a URL. Aura's AI pipeline audits every page against Fitts's Law, Gestalt, F-Pattern, heatmaps, and 50+ benchmark sites — then tells you exactly what to fix.
           </p>
 
           {/* URL Input */}
@@ -216,7 +216,7 @@ export default function LandingPage() {
           <Sparkles className="w-3.5 h-3.5 text-aura-accent" />
           <span className="text-xs text-aura-faint font-mono">Aura Design AI</span>
         </div>
-        <p className="text-xs text-aura-faint">Built with LangGraph · Gemini · Pinecone · Supabase</p>
+        <p className="text-xs text-aura-faint">Built with Gemini · Pinecone · Supabase</p>
       </footer>
 
     </div>

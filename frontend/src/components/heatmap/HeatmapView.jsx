@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -14,7 +14,6 @@ import Spinner from '../ui/Spinner'
 
 const VIEWS = ['surveys', 'bundles']
 
-// â”€â”€ Heat colour scale (0-100 â†’ colour) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function heatColor(v) {
   if (v === 0) return 'transparent'
   if (v < 20) return `rgba(0,0,255,${v / 100 * 0.4})`
@@ -31,6 +30,8 @@ export default function HeatmapView() {
   const [activeView, setActiveView] = useState('surveys')
   const [siteUrl, setSiteUrl] = useState(onboardingData?.url || '')
   const [inputUrl, setInputUrl] = useState(onboardingData?.url || '')
+  // Bug 9 fix: IST-aware today filter, defaults on
+  const [todayOnly, setTodayOnly] = useState(true)
   const [selectedSurvey, setSelectedSurvey] = useState(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [copiedToken, setCopiedToken] = useState(null)
@@ -38,8 +39,11 @@ export default function HeatmapView() {
   const qc = useQueryClient()
 
   const { data: surveys = [], isLoading: surveysLoading } = useQuery({
-    queryKey: ['heatmap-surveys', siteUrl],
-    queryFn: async () => { const r = await heatmapApi.getSurveys(siteUrl || undefined); return r.data.data },
+    queryKey: ['heatmap-surveys', siteUrl, todayOnly],
+    queryFn: async () => {
+      const r = await heatmapApi.getSurveys(siteUrl || undefined, todayOnly ? 'today' : null)
+      return r.data.data
+    },
     enabled: activeView === 'surveys',
     retry: 1,
   })
@@ -68,7 +72,7 @@ export default function HeatmapView() {
     onSuccess: (res) => {
       const s = res.data.data.session
       setActiveSession({ id: s.id, thread_id: s.thread_id })
-      setBundleChatMsg('Session created! Switching to Chatâ€¦')
+      setBundleChatMsg('Session created! Switching to Chat\u2026')
       setTimeout(() => { setActiveFeature('chat'); setBundleChatMsg('') }, 1800)
     },
   })
@@ -82,8 +86,7 @@ export default function HeatmapView() {
 
   return (
     <div className="flex h-full bg-aura-void overflow-hidden">
-
-      {/* â”€â”€ Left panel â”€â”€ */}
+      {/* Left panel */}
       <div className="w-64 border-r border-aura-line bg-aura-surface flex flex-col shrink-0">
         <div className="p-4 border-b border-aura-line">
           <div className="flex items-center gap-2 mb-1">
@@ -96,10 +99,12 @@ export default function HeatmapView() {
         {/* URL filter */}
         <div className="p-3 border-b border-aura-line">
           <div className="flex gap-1.5">
-            <input value={inputUrl} onChange={e => setInputUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && setSiteUrl(inputUrl)}
-              placeholder="Filter by site URLâ€¦"
+            <input value={inputUrl} onChange={e => setInputUrl(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && setSiteUrl(inputUrl)}
+              placeholder="Filter by site URL\u2026"
               className="flex-1 bg-aura-card border border-aura-border rounded-lg px-2.5 py-1.5 text-xs text-aura-text placeholder:text-aura-faint outline-none focus:border-aura-accent transition-all" />
-            <button onClick={() => setSiteUrl(inputUrl)} className="px-2 py-1.5 bg-aura-accent hover:bg-aura-accent-dim text-white rounded-lg text-xs transition-all">â†’</button>
+            <button onClick={() => setSiteUrl(inputUrl)}
+              className="px-2 py-1.5 bg-aura-accent hover:bg-aura-accent-dim text-white rounded-lg text-xs transition-all">{'→'}</button>
           </div>
         </div>
 
@@ -113,6 +118,20 @@ export default function HeatmapView() {
             </button>
           ))}
         </div>
+
+        {/* Bug 9 fix: Today / All Time toggle */}
+        {activeView === 'surveys' && (
+          <div className="px-3 py-2 border-b border-aura-line flex items-center gap-1.5">
+            <button onClick={() => setTodayOnly(true)}
+              className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-all ${todayOnly ? 'bg-aura-accent/15 text-aura-accent border border-aura-accent/25' : 'text-aura-muted hover:text-aura-text'}`}>
+              Today
+            </button>
+            <button onClick={() => setTodayOnly(false)}
+              className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-all ${!todayOnly ? 'bg-aura-accent/15 text-aura-accent border border-aura-accent/25' : 'text-aura-muted hover:text-aura-text'}`}>
+              All Time
+            </button>
+          </div>
+        )}
 
         {/* New survey button */}
         {activeView === 'surveys' && (
@@ -134,10 +153,18 @@ export default function HeatmapView() {
                 : surveys.map(s => (
                   <button key={s.id} onClick={() => setSelectedSurvey(s)}
                     className={`w-full text-left px-3 py-2.5 rounded-lg mb-1 transition-all ${selectedSurvey?.id === s.id ? 'bg-aura-accent/10 border border-aura-accent/20' : 'hover:bg-aura-card border border-transparent'}`}>
-                    <p className="text-xs font-medium text-aura-text truncate">{s.title}</p>
+                    {/* Title + today badge (Bug 9 fix) */}
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-medium text-aura-text truncate flex-1">{s.title}</p>
+                      {s.heatmap_summary?.updated_today && (
+                        <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/20">today</span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-xs text-aura-faint">{s.response_count} responses</span>
-                      <span className={`text-xs px-1 rounded ${s.is_active ? 'text-green-400' : 'text-aura-faint'}`}>{s.is_active ? 'â— live' : 'â—‹ closed'}</span>
+                      <span className={`text-xs px-1 rounded ${s.is_active ? 'text-green-400' : 'text-aura-faint'}`}>
+                        {s.is_active ? '\u25CF live' : '\u25CB closed'}
+                      </span>
                     </div>
                   </button>
                 ))
@@ -155,12 +182,11 @@ export default function HeatmapView() {
                 : bundles.map(b => (
                   <div key={b.id} className="px-3 py-2.5 rounded-lg mb-1.5 bg-aura-card border border-aura-border">
                     <p className="text-xs font-medium text-aura-text truncate">{b.bundle_name}</p>
-                    <p className="text-xs text-aura-faint mt-0.5 mb-2">{b.page_keys?.length} pages Â· {new Date(b.created_at).toLocaleDateString()}</p>
+                    <p className="text-xs text-aura-muted mt-0.5 mb-2">{b.page_keys?.length} pages &middot; {new Date(b.created_at).toLocaleDateString()}</p>
                     <button
                       onClick={() => bundleToChatMutation.mutate(b.id)}
                       disabled={bundleToChatMutation.isPending}
-                      className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md bg-aura-accent/10 border border-aura-accent/20 hover:bg-aura-accent/20 text-aura-accent text-xs font-medium transition-all disabled:opacity-40"
-                    >
+                      className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md bg-aura-accent/10 border border-aura-accent/20 hover:bg-aura-accent/20 text-aura-accent text-xs font-medium transition-all disabled:opacity-40">
                       {bundleToChatMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <MessageSquare className="w-3 h-3" />}
                       Send to Chat
                     </button>
@@ -171,7 +197,7 @@ export default function HeatmapView() {
         )}
       </div>
 
-      {/* â”€â”€ Main area â”€â”€ */}
+      {/* Main area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <AnimatePresence>
           {bundleChatMsg && (
@@ -197,7 +223,6 @@ export default function HeatmapView() {
         )}
       </div>
 
-      {/* Create survey modal */}
       {showCreateModal && (
         <CreateSurveyModal
           defaultUrl={siteUrl}
@@ -216,14 +241,13 @@ function SurveyDetail({ survey, results, onCopy, copied, onCompute, computing, o
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
       <div className="flex items-center gap-3 px-5 py-3.5 border-b border-aura-line bg-aura-surface shrink-0">
         <button onClick={onClose} className="text-aura-faint hover:text-aura-muted transition-colors">
           <X className="w-4 h-4" />
         </button>
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold text-aura-text truncate">{survey.title}</h3>
-          <p className="text-xs text-aura-muted">{survey.site_url} Â· {survey.page_key}</p>
+          <p className="text-xs text-aura-muted">{survey.site_url} &middot; {survey.page_key}</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-aura-muted">{survey.response_count} responses</span>
@@ -235,13 +259,12 @@ function SurveyDetail({ survey, results, onCopy, copied, onCompute, computing, o
       </div>
 
       <div className="flex-1 overflow-y-auto p-5">
-        {/* Shareable link card */}
         <div className="mb-5 p-4 rounded-xl bg-aura-card border border-aura-border">
           <div className="flex items-center gap-2 mb-2">
             <Link2 className="w-4 h-4 text-aura-accent" />
             <h4 className="text-sm font-medium text-aura-text">Shareable Survey Link</h4>
           </div>
-          <p className="text-xs text-aura-muted mb-3">Share this link with users. They see your page screenshot and click where their attention goes.</p>
+          <p className="text-xs text-aura-muted mb-3">Share this link. Participants click where their attention goes, you get a heatmap.</p>
           <div className="flex items-center gap-2">
             <div className="flex-1 flex items-center gap-2 bg-aura-elevated border border-aura-border rounded-lg px-3 py-2 font-mono text-xs text-aura-accent truncate">
               {shareUrl}
@@ -257,7 +280,6 @@ function SurveyDetail({ survey, results, onCopy, copied, onCompute, computing, o
           </div>
         </div>
 
-        {/* Screenshot + Heatmap overlay */}
         <div className="mb-5 rounded-xl border border-aura-border overflow-hidden bg-aura-card">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-aura-line">
             <h4 className="text-xs font-medium text-aura-text flex items-center gap-2">
@@ -268,17 +290,17 @@ function SurveyDetail({ survey, results, onCopy, copied, onCompute, computing, o
           <div className="relative" style={{ maxHeight: '500px', overflow: 'auto' }}>
             {survey.screenshot_url ? (
               <div className="relative inline-block w-full">
-                <img src={survey.screenshot_url.startsWith('http') ? survey.screenshot_url : `http://localhost:3002${survey.screenshot_url}`}
+                <img
+                  src={survey.screenshot_url.startsWith('http') ? survey.screenshot_url : `http://localhost:3002${survey.screenshot_url}`}
                   alt="Page screenshot" className="w-full" />
-                {/* Heatmap grid overlay */}
                 {hm?.grid_data && (
-                  <div className="absolute inset-0 pointer-events-none" style={{ display: 'grid', gridTemplateRows: `repeat(20, 1fr)`, gridTemplateColumns: `repeat(20, 1fr)` }}>
+                  <div className="absolute inset-0 pointer-events-none"
+                    style={{ display: 'grid', gridTemplateRows: 'repeat(20,1fr)', gridTemplateColumns: 'repeat(20,1fr)' }}>
                     {JSON.parse(typeof hm.grid_data === 'string' ? hm.grid_data : JSON.stringify(hm.grid_data)).flat().map((v, i) => (
                       <div key={i} style={{ backgroundColor: heatColor(v), transition: 'background-color 0.2s' }} />
                     ))}
                   </div>
                 )}
-                {/* Click dots */}
                 {!hm?.grid_data && clicks.slice(0, 100).map((c, i) => (
                   <div key={i} className="absolute w-3 h-3 rounded-full border-2 border-white/60"
                     style={{
@@ -296,13 +318,12 @@ function SurveyDetail({ survey, results, onCopy, copied, onCompute, computing, o
           </div>
         </div>
 
-        {/* Stats */}
         {hm && (
           <div className="grid grid-cols-3 gap-3 mb-5">
             {[
-              { label: 'Responses', value: survey.response_count },
-              { label: 'Above Fold', value: `${hm.above_fold_pct}%` },
-              { label: 'Confidence', value: hm.confidence_level ?? 'low' },
+              { label: 'Responses',   value: survey.response_count },
+              { label: 'Above Fold',  value: `${hm.above_fold_pct}%` },
+              { label: 'Confidence',  value: hm.confidence_level ?? 'low' },
             ].map(s => (
               <div key={s.label} className="p-3 rounded-lg bg-aura-card border border-aura-border text-center">
                 <p className="text-lg font-display font-bold text-aura-accent">{s.value}</p>
@@ -312,20 +333,64 @@ function SurveyDetail({ survey, results, onCopy, copied, onCompute, computing, o
           </div>
         )}
 
-        {/* Summary text */}
         {hm?.summary_text && (
           <div className="p-4 rounded-xl bg-aura-elevated border border-aura-border">
-            <p className="text-xs font-medium text-aura-text mb-1 flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-aura-accent" /> AI Summary</p>
+            <p className="text-xs font-medium text-aura-text mb-1 flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-aura-accent" /> AI Summary
+            </p>
             <p className="text-xs text-aura-muted leading-relaxed">{hm.summary_text}</p>
           </div>
         )}
-
-        {/* No data yet */}
         {!hm && !computing && survey.response_count === 0 && (
           <div className="text-center py-8">
             <Users className="w-8 h-8 text-aura-faint mx-auto mb-3" />
             <p className="text-sm text-aura-text mb-1">Waiting for responses</p>
             <p className="text-xs text-aura-muted">Share the link above to collect click data. Heatmap auto-generates at 5, 10, 20 responses.</p>
+          </div>
+        )}
+
+        {/* Responses table — show all collected click events */}
+        {clicks.length > 0 && (
+          <div className="mt-5 rounded-xl border border-aura-border overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-aura-card border-b border-aura-line">
+              <h4 className="text-xs font-medium text-aura-text flex items-center gap-2">
+                <BarChart2 className="w-3.5 h-3.5 text-aura-accent" />
+                Collected Responses
+                <span className="px-1.5 py-0.5 rounded bg-aura-accent/10 text-aura-accent text-[10px] font-mono">{clicks.length} clicks</span>
+              </h4>
+            </div>
+            <div className="overflow-x-auto max-h-64 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-aura-elevated border-b border-aura-line">
+                  <tr>
+                    <th className="text-left px-4 py-2 text-aura-faint font-medium">#</th>
+                    <th className="text-left px-4 py-2 text-aura-faint font-medium">Click</th>
+                    <th className="text-left px-4 py-2 text-aura-faint font-medium">X Position</th>
+                    <th className="text-left px-4 py-2 text-aura-faint font-medium">Y Position</th>
+                    <th className="text-left px-4 py-2 text-aura-faint font-medium">Device</th>
+                    <th className="text-left px-4 py-2 text-aura-faint font-medium">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clicks.map((c, i) => (
+                    <tr key={c.id ?? i} className={`border-b border-aura-line/50 ${i % 2 === 0 ? 'bg-aura-void' : 'bg-aura-surface/30'}`}>
+                      <td className="px-4 py-2 text-aura-faint font-mono">{i + 1}</td>
+                      <td className="px-4 py-2">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                          c.click_order === 1 ? 'bg-red-500/15 text-red-400' :
+                          c.click_order === 2 ? 'bg-orange-500/15 text-orange-400' :
+                          'bg-blue-500/15 text-blue-400'
+                        }`}>Click {c.click_order}</span>
+                      </td>
+                      <td className="px-4 py-2 text-aura-muted font-mono">{Math.round(c.x_pct * 100)}%</td>
+                      <td className="px-4 py-2 text-aura-muted font-mono">{Math.round(c.y_pct * 100)}%</td>
+                      <td className="px-4 py-2 text-aura-faint capitalize">{c.device_type ?? 'desktop'}</td>
+                      <td className="px-4 py-2 text-aura-faint">{c.created_at ? new Date(c.created_at).toLocaleTimeString() : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
@@ -338,7 +403,7 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
   const [pageKey, setPageKey] = useState('homepage')
   const [title, setTitle] = useState('')
   const [instructions, setInstructions] = useState('')
-  const [step, setStep] = useState('url') // url | screenshot | confirm
+  const [step, setStep] = useState('url')
   const [screenshotData, setScreenshotData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -351,7 +416,10 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
       setScreenshotData(res.data.data)
       setStep('confirm')
     } catch (err) {
-      setError(err.response?.data?.error || 'Screenshot failed')
+      // Screenshot failed — allow user to proceed without one
+      setError((err.response?.data?.error || 'Screenshot failed') + ' — you can still create the survey without a screenshot.')
+      setScreenshotData({ screenshot_url: null, element_count: 0, full_page_captured: false })
+      setStep('confirm')
     } finally { setLoading(false) }
   }
 
@@ -359,11 +427,10 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
     setLoading(true); setError('')
     try {
       const res = await heatmapApi.createSurvey({
-        siteUrl: url.trim(), pageKey,
-        pageUrl: url.trim(),
+        siteUrl: url.trim(), pageKey, pageUrl: url.trim(),
         screenshotUrl: screenshotData?.screenshot_url,
         screenshotWidth: 1280, screenshotHeight: 3000,
-        title: title || `Heatmap Survey â€” ${pageKey}`,
+        title: title || `Heatmap Survey \u2014 ${pageKey}`,
         instructions: instructions || undefined,
       })
       onCreated(res.data.data)
@@ -376,7 +443,6 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-lg bg-aura-card border border-aura-border rounded-2xl shadow-elevated overflow-hidden">
-
         <div className="flex items-center justify-between px-5 py-4 border-b border-aura-border">
           <div className="flex items-center gap-2">
             <Camera className="w-4 h-4 text-aura-accent" />
@@ -389,53 +455,51 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
           {step === 'url' && <>
             <div>
               <label className="text-xs text-aura-muted uppercase tracking-wide mb-1.5 block">Website URL *</label>
-              <input value={url} onChange={e => setUrl(e.target.value)}
-                placeholder="https://yoursite.com"
+              <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://yoursite.com"
                 className="w-full bg-aura-elevated border border-aura-border focus:border-aura-accent rounded-lg px-3.5 py-2.5 text-sm text-aura-text placeholder:text-aura-faint outline-none transition-all" />
             </div>
             <div>
               <label className="text-xs text-aura-muted uppercase tracking-wide mb-1.5 block">Page Identifier</label>
-              <input value={pageKey} onChange={e => setPageKey(e.target.value)}
-                placeholder="homepage / pricing / about"
+              <input value={pageKey} onChange={e => setPageKey(e.target.value)} placeholder="homepage / pricing / about"
                 className="w-full bg-aura-elevated border border-aura-border focus:border-aura-accent rounded-lg px-3.5 py-2.5 text-sm text-aura-text placeholder:text-aura-faint outline-none transition-all" />
             </div>
           </>}
-
           {step === 'confirm' && <>
             <div className="rounded-lg border border-aura-border overflow-hidden bg-aura-elevated text-center py-3">
               {screenshotData?.screenshot_url
                 ? <img src={screenshotData.screenshot_url} alt="Preview" className="max-h-48 mx-auto object-contain rounded" />
                 : <p className="text-xs text-aura-faint py-8">Screenshot captured ({screenshotData?.element_count} elements)</p>}
+              {screenshotData?.screenshot_url && screenshotData?.full_page_captured === false && (
+                <p className="text-[10px] text-aura-faint mt-2">Viewport only — full page was too long or timed out.</p>
+              )}
             </div>
             <div>
               <label className="text-xs text-aura-muted uppercase tracking-wide mb-1.5 block">Survey Title</label>
-              <input value={title} onChange={e => setTitle(e.target.value)} placeholder={`Heatmap Survey â€” ${pageKey}`}
+              <input value={title} onChange={e => setTitle(e.target.value)} placeholder={`Heatmap Survey \u2014 ${pageKey}`}
                 className="w-full bg-aura-elevated border border-aura-border focus:border-aura-accent rounded-lg px-3.5 py-2.5 text-sm text-aura-text placeholder:text-aura-faint outline-none transition-all" />
             </div>
             <div>
-              <label className="text-xs text-aura-muted uppercase tracking-wide mb-1.5 block">Instructions for participants <span className="normal-case text-aura-faint">(optional)</span></label>
+              <label className="text-xs text-aura-muted uppercase tracking-wide mb-1.5 block">Instructions <span className="normal-case text-aura-faint">(optional)</span></label>
               <textarea value={instructions} onChange={e => setInstructions(e.target.value)} rows={2}
-                placeholder="Click on the areas that catch your eye firstâ€¦"
+                placeholder="Click on the areas that catch your eye first\u2026"
                 className="w-full bg-aura-elevated border border-aura-border focus:border-aura-accent rounded-lg px-3.5 py-2.5 text-sm text-aura-text placeholder:text-aura-faint outline-none transition-all resize-none" />
             </div>
           </>}
-
           {error && <p className="text-xs text-aura-error">{error}</p>}
         </div>
-
         <div className="px-5 py-4 border-t border-aura-border flex gap-2 justify-end">
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-xs text-aura-muted border border-aura-border hover:border-aura-accent/30 transition-all">Cancel</button>
           {step === 'url'
             ? <button onClick={handleScreenshot} disabled={loading}
-              className="flex items-center gap-2 px-5 py-2 bg-aura-accent hover:bg-aura-accent-dim text-white text-xs font-medium rounded-lg transition-all disabled:opacity-40">
-              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
-              {loading ? 'Capturingâ€¦' : 'Take Screenshot'}
-            </button>
+                className="flex items-center gap-2 px-5 py-2 bg-aura-accent hover:bg-aura-accent-dim text-white text-xs font-medium rounded-lg transition-all disabled:opacity-40">
+                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+                {loading ? 'Capturing\u2026' : 'Take Screenshot'}
+              </button>
             : <button onClick={handleCreate} disabled={loading}
-              className="flex items-center gap-2 px-5 py-2 bg-aura-accent hover:bg-aura-accent-dim text-white text-xs font-medium rounded-lg transition-all disabled:opacity-40">
-              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
-              {loading ? 'Creatingâ€¦' : 'Create Survey & Get Link'}
-            </button>
+                className="flex items-center gap-2 px-5 py-2 bg-aura-accent hover:bg-aura-accent-dim text-white text-xs font-medium rounded-lg transition-all disabled:opacity-40">
+                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                {loading ? 'Creating\u2026' : 'Create Survey & Get Link'}
+              </button>
           }
         </div>
       </motion.div>
@@ -458,11 +522,11 @@ function EmptyState({ activeView, onNew }) {
           : 'Bundles group multiple page heatmaps together. Select surveys and bundle them to send to the AI chatbot for analysis.'}
       </p>
       {activeView === 'surveys' && (
-        <button onClick={onNew} className="flex items-center gap-2 bg-aura-accent hover:bg-aura-accent-dim text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-all">
+        <button onClick={onNew}
+          className="flex items-center gap-2 bg-aura-accent hover:bg-aura-accent-dim text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-all">
           <Plus className="w-4 h-4" /> Create First Survey
         </button>
       )}
     </div>
   )
 }
-

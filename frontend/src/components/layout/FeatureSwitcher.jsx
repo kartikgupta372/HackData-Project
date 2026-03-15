@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion'
-import { MessageSquare, Activity, Star } from 'lucide-react'
+import { MessageSquare, Activity, Star, Lightbulb } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
 import { clsx } from 'clsx'
 
 const FEATURES = [
   { id: 'chat',            label: 'Chatbot',         icon: MessageSquare },
   { id: 'heatmap',         label: 'Heatmap Studio',  icon: Activity },
+  { id: 'insights',        label: 'Insights',        icon: Lightbulb },
   { id: 'recommendations', label: 'Recommendations', icon: Star },
 ]
 

@@ -8,4 +8,6 @@ export const recommendationsApi = {
   getCards:      (params)         => api.get('/recommendations/cards', { params }),
   generateCards: (data)           => api.post('/recommendations/generate-cards', data),
   cardAction:    (cardId, action) => api.post(`/recommendations/cards/${cardId}/action`, { action }),
+  discuss:       (cardId)         => api.post(`/recommendations/cards/${cardId}/discuss`),
+  vibePrompt:    (data)           => api.post('/recommendations/vibe-prompt', data),
 }

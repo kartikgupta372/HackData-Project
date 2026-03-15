@@ -8,22 +8,6 @@ const puppeteer = require('puppeteer');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs');
-const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
-const { HumanMessage, SystemMessage } = require('@langchain/core/messages');
-
-// Lazy LLM — created on first use so GEMINI_API_KEY is always loaded
-let _llm = null;
-function getLLM() {
-  if (!_llm) {
-    _llm = new ChatGoogleGenerativeAI({
-      model: 'gemini-2.5-flash',
-      apiKey: process.env.GEMINI_API_KEY,
-      temperature: 0,
-      maxOutputTokens: 1500,
-    });
-  }
-  return _llm;
-}
 
 // Uploads directory for screenshots
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
@@ -67,28 +51,50 @@ async function extractCSS(page) {
   });
 }
 
-async function compressDom(html, url) {
-  if (!html || html.length < 300) return html ?? '';
-  try {
-    const result = await getLLM().invoke([
-      new SystemMessage(
-        'Extract a compact DOM summary for design analysis. Include: ' +
-        'page title, H1-H3 headings, CTA buttons (text + classes), nav links, ' +
-        'main section classes, color-related classes, form elements, image count. ' +
-        'Return as a structured plain-text summary under 400 words.'
-      ),
-      new HumanMessage(`URL: ${url}\n\nHTML (first 8000 chars):\n${html.substring(0, 8000)}`),
-    ]);
-    return result.content;
-  } catch {
-    return html
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .substring(0, 2000);
-  }
+// Zero-cost DOM summariser — no Gemini calls, instant, extracts the most
+// design-relevant info: title, headings, CTAs, nav, forms, class patterns.
+function compressDom(html, url) {
+  if (!html || html.length < 100) return html ?? '';
+
+  const get = (re) => {
+    const matches = [];
+    let m;
+    while ((m = re.exec(html)) !== null) matches.push(m[1]?.trim());
+    return matches.filter(Boolean);
+  };
+
+  const strip = (s) => s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+
+  const title = strip(html.match(/<title[^>]*>(.*?)<\/title>/si)?.[1] ?? '');
+  const h1s = get(/<h1[^>]*>(.*?)<\/h1>/gsi).map(strip).slice(0, 4);
+  const h2s = get(/<h2[^>]*>(.*?)<\/h2>/gsi).map(strip).slice(0, 6);
+  const h3s = get(/<h3[^>]*>(.*?)<\/h3>/gsi).map(strip).slice(0, 4);
+  const buttons = get(/<button[^>]*>(.*?)<\/button>/gsi).map(strip).slice(0, 6);
+  const links = get(/<a[^>]*href=['"][^'"]+['"][^>]*>(.*?)<\/a>/gsi).map(strip).filter(t => t.length > 1).slice(0, 10);
+  const inputs = get(/<input[^>]*type=['"]([^'"]+)['"]/gi).slice(0, 8);
+  const imgs = (html.match(/<img[\s\S]*?>/gi) ?? []).length;
+  const navMatch = html.match(/<nav[\s\S]*?<\/nav>/si)?.[0] ?? '';
+  const navLinks = get(/<a[^>]*>(.*?)<\/a>/gsi).map(strip).filter(t => t.length > 1).slice(0, 8);
+
+  // Extract class names that hint at design patterns
+  const allClasses = (html.match(/class=['"]([^'"]+)['"]/gi) ?? [])
+    .flatMap(c => c.replace(/class=['"]/, '').replace(/['"]$/, '').split(/\s+/))
+    .filter(c => /btn|cta|hero|nav|header|footer|card|grid|flex|container|section|feature|price|plan|dark|light|primary|secondary/.test(c))
+    .slice(0, 30);
+  const uniqueClasses = [...new Set(allClasses)].join(', ');
+
+  return [
+    `URL: ${url}`,
+    title ? `Title: ${title}` : '',
+    h1s.length ? `H1: ${h1s.join(' | ')}` : '',
+    h2s.length ? `H2: ${h2s.join(' | ')}` : '',
+    h3s.length ? `H3: ${h3s.join(' | ')}` : '',
+    buttons.length ? `Buttons/CTAs: ${buttons.join(' | ')}` : '',
+    links.length ? `Nav/Links: ${links.join(' | ')}` : '',
+    inputs.length ? `Form inputs: ${inputs.join(', ')}` : '',
+    `Images: ${imgs}`,
+    uniqueClasses ? `Design classes: ${uniqueClasses}` : '',
+  ].filter(Boolean).join('\n').substring(0, 2000);
 }
 
 // ── Core scraper ───────────────────────────────────────────────────────────────
@@ -145,7 +151,7 @@ async function scrapeSinglePage(browser, url, options = {}) {
       await page.screenshot({ path: ssPath, fullPage: false });
     }
 
-    const domSummary = await compressDom(html, url);
+    const domSummary = compressDom(html, url);
 
     return {
       page_url: url,

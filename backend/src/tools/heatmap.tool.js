@@ -19,7 +19,7 @@ const TIME_WEIGHTS = [
 
 let _llm = null;
 function getLLM() {
-  if (!_llm) _llm = new ChatGoogleGenerativeAI({ model: 'gemini-2.5-flash', apiKey: process.env.GEMINI_API_KEY, temperature: 0, maxOutputTokens: 2000 });
+  if (!_llm) _llm = new ChatGoogleGenerativeAI({ model: 'gemini-2.0-flash', apiKey: process.env.GEMINI_API_KEY, temperature: 0, maxOutputTokens: 2000 });
   return _llm;
 }
 
@@ -144,4 +144,6 @@ async function saveGazeSession(sessionData) {
 }
 
 module.exports = { aggregateHeatmap, predictHeatmap, getHeatmap, saveGazeSession };
+
+
 

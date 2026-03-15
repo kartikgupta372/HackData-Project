@@ -1,4 +1,4 @@
-﻿// src/routes/heatmap.routes.js
+// src/routes/heatmap.routes.js
 // Heatmap: screenshot capture + shareable survey links + click collection + bundles
 
 const express = require('express');
@@ -15,7 +15,7 @@ require('dotenv').config();
 
 let _llm = null;
 function getLLM() {
-  if (!_llm) _llm = new ChatGoogleGenerativeAI({ model: 'gemini-2.5-flash', apiKey: process.env.GEMINI_API_KEY, temperature: 0 });
+  if (!_llm) _llm = new ChatGoogleGenerativeAI({ model: 'gemini-2.0-flash', apiKey: process.env.GEMINI_API_KEY, temperature: 0 });
   return _llm;
 }
 function safeJSON(t, fb = {}) {
@@ -44,12 +44,13 @@ router.post('/screenshot', authMiddleware, async (req, res) => {
     res.json({
       success: true,
       data: {
-        screenshot_url:  absoluteScreenshotUrl,
-        page_key:        pageKey || homeKey,
-        page_url:        page.page_url,
-        page_title:      page.page_title,
-        element_count:   page.element_count,
-        dom_summary:     page.dom_summary,
+        screenshot_url:     absoluteScreenshotUrl,
+        page_key:           pageKey || homeKey,
+        page_url:           page.page_url,
+        page_title:         page.page_title,
+        element_count:      page.element_count,
+        dom_summary:        page.dom_summary,
+        full_page_captured: page.full_page_captured === true,
       }
     });
   } catch (err) {
@@ -139,11 +140,8 @@ router.post('/survey/:token/submit', async (req, res) => {
     const { error: insErr } = await supabase.from('survey_click_events').insert(events);
     if (insErr) throw new Error(insErr.message);
 
-    // Increment response count
-    await supabase.from('heatmap_survey_links')
-      .update({ response_count: supabase.rpc('increment_response_count', { survey_id: survey.id }) })
-      .eq('id', survey.id);
-    // Simple increment via raw SQL
+    // Fix D: was double-incrementing (broken supabase.rpc inside update + pool.query both ran)
+    // Keep only the reliable pool.query increment
     await pool.query('UPDATE heatmap_survey_links SET response_count = response_count + 1 WHERE id = $1', [survey.id]);
 
     // Auto-compute heatmap when we hit 5, 10, 20 responses
@@ -162,19 +160,41 @@ router.post('/survey/:token/submit', async (req, res) => {
 
 // â”€â”€ GET /heatmap/surveys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // List all survey links for the authenticated user
+// BUG 9 FIX: Support ?since=today (IST-aware) and ?since=<ISO> filters.
+// DB stores UTC; user is IST (UTC+5:30). Without this fix "today" missed surveys
+// created between 00:00-05:30 IST because UTC date was still yesterday.
 router.get('/surveys', authMiddleware, async (req, res) => {
   try {
-    const { siteUrl } = req.query;
+    const { siteUrl, since } = req.query;
+
+    // Resolve "today" to midnight IST expressed as UTC ISO string
+    let sinceTs = null;
+    if (since === 'today') {
+      const istDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // "YYYY-MM-DD"
+      sinceTs = new Date(`${istDateStr}T00:00:00+05:30`).toISOString();
+    } else if (since) {
+      const d = new Date(since);
+      if (!isNaN(d.getTime())) sinceTs = d.toISOString();
+    }
+
     let q = supabase.from('heatmap_survey_links')
       .select('*').eq('user_id', req.user.id).order('created_at', { ascending: false });
     if (siteUrl) q = q.eq('site_url', siteUrl);
+    if (sinceTs) q = q.gte('created_at', sinceTs);
     const { data, error } = await q;
     if (error) throw new Error(error.message);
 
-    // For each survey, attach heatmap summary if exists
+    // Compute IST "start of today" once for the updated_today flag
+    const istNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const istTodayStart = new Date(istNow); istTodayStart.setHours(0, 0, 0, 0);
+
+    // Attach heatmap summaries + updated_today flag (IST-correct)
     const withHeatmaps = await Promise.all((data ?? []).map(async s => {
       const hm = await heatmap.getHeatmap(s.site_url, s.page_key).catch(() => null);
-      return { ...s, heatmap_summary: hm };
+      const hmUpdatedToday = hm?.last_updated
+        ? new Date(new Date(hm.last_updated).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })) >= istTodayStart
+        : false;
+      return { ...s, heatmap_summary: hm ? { ...hm, updated_today: hmUpdatedToday } : null };
     }));
     res.json({ success: true, data: withHeatmaps });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
@@ -404,6 +424,8 @@ async function computeSurveyHeatmap(surveyId, siteUrl, pageKey) {
 }
 
 module.exports = router;
+
+
 
 
 

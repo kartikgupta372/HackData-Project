@@ -5,7 +5,11 @@ import api from './axios'
 const BASE = import.meta.env.VITE_API_URL || ''
 
 export const chatApi = {
-  createSession:  (siteUrl)   => api.post('/chat/sessions', siteUrl ? { siteUrl } : {}),
+  createSession:  (siteUrl, domain, intent) => api.post('/chat/sessions', {
+    ...(siteUrl ? { siteUrl } : {}),
+    ...(domain  ? { domain }  : {}),
+    ...(intent  ? { intent }  : {}),
+  }),
   listSessions:   ()          => api.get('/chat/sessions'),
   getSession:     (threadId)  => api.get(`/chat/sessions/${threadId}`),
   deleteSession:  (sessionId) => api.delete(`/chat/sessions/${sessionId}`),
@@ -62,7 +66,7 @@ export const chatApi = {
               case 'token':             onToken?.(data.token);        break
               case 'assistant_message': onMessage?.(data);            break
               case 'done':              onDone?.(data);               break
-              case 'error':             onError?.(data.error);        break
+              case 'error':             onError?.(data.error, { retryable: data.retryable ?? false }); break
               // ignore :heartbeat comments
             }
           } catch { /* malformed JSON — skip */ }

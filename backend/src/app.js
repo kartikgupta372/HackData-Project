@@ -56,6 +56,7 @@ app.use('/chat',            require('./routes/chat.routes'));
 app.use('/heatmap',         require('./routes/heatmap.routes'));
 app.use('/recommendations', require('./routes/recommendation.routes'));
 app.use('/onboarding',      require('./routes/onboarding.routes'));
+app.use('/insights',        require('./routes/insights.routes'));
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 app.get('/', (_req, res) => res.json({ name: 'Aura Design AI Backend', status: 'running', version: '1.0.0' }));
@@ -77,8 +78,8 @@ async function start(port) {
   }
   try {
     require('./db/pool');
-    const { getGraph } = require('./graph/auraGraph');
-    await getGraph();
+    // LangGraph pre-warm REMOVED — chat now uses direct Gemini streaming.
+    // Loading the graph on startup caused unnecessary Gemini API calls.
     const server = app.listen(port, () => {
       console.log(`\n✅ Aura Backend running → http://localhost:${port}`);
       console.log(`   Environment: ${process.env.NODE_ENV}`);

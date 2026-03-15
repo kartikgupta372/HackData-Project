@@ -2,15 +2,16 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { Copy, Check, Download } from 'lucide-react'
+import { Copy, Check, Download, RotateCcw, AlertTriangle } from 'lucide-react'
 import { useState } from 'react'
 import { AuraAvatar } from './MessageList'
 import { clsx } from 'clsx'
 
-export default function MessageBubble({ message }) {
+export default function MessageBubble({ message, onRetry }) {
   const isUser      = message.role === 'user'
   const isStreaming = message.type === 'streaming'
   const isError     = message.type === 'error'
+  const isRetryable = isError && message.retryable
 
   if (isUser) {
     return (
@@ -22,13 +23,34 @@ export default function MessageBubble({ message }) {
     )
   }
 
+  if (isError) {
+    return (
+      <div className="flex items-start gap-3">
+        <AuraAvatar />
+        <div className="flex-1 min-w-0">
+          <div className="inline-flex items-start gap-2.5 px-4 py-3 rounded-xl bg-red-500/8 border border-red-500/20 max-w-[85%]">
+            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm text-red-300 leading-relaxed">{message.content}</p>
+              {isRetryable && onRetry && (
+                <button onClick={onRetry}
+                  className="mt-2 flex items-center gap-1.5 text-xs text-aura-accent hover:text-aura-text border border-aura-accent/30 hover:border-aura-accent/60 px-2.5 py-1.5 rounded-lg transition-all">
+                  <RotateCcw className="w-3 h-3" /> Try again
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex items-start gap-3">
       <AuraAvatar />
       <div className={clsx(
         'flex-1 min-w-0 prose-aura text-sm',
         isStreaming && 'stream-cursor',
-        isError && 'text-aura-error'
       )}>
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}

@@ -14,6 +14,7 @@ export default defineConfig({
       '/uploads':         { target: 'http://localhost:3002', changeOrigin: true, secure: false },
       '/health':          { target: 'http://localhost:3002', changeOrigin: true, secure: false },
       '/onboarding':      { target: 'http://localhost:3002', changeOrigin: true, secure: false },
+      '/insights':         { target: 'http://localhost:3002', changeOrigin: true, secure: false },
     },
   },
   build: {
