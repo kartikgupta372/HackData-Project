@@ -6,7 +6,7 @@
 
 require('dotenv').config();
 
-const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
+const { ChatGroq } = require('@langchain/groq');
 const { HumanMessage, SystemMessage, AIMessage } = require('@langchain/core/messages');
 const pool = require('../db/pool');
 const scraper = require('../tools/scraper.tool');
@@ -19,9 +19,9 @@ const sse = require('../utils/sseRegistry');
 let _llm = null;
 function getLLM() {
   if (!_llm) {
-    _llm = new ChatGoogleGenerativeAI({
-      model: 'gemini-2.0-flash',
-      apiKey: process.env.GEMINI_API_KEY,
+    _llm = new ChatGroq({
+      model: 'llama-3.3-70b-versatile',
+      apiKey: process.env.GROQ_API_KEY,
       temperature: 0.3,
       maxOutputTokens: 8192,
       streaming: true,

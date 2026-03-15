@@ -1,38 +1,43 @@
 // src/routes/insights.routes.js
 // Insight Engine: auto-generates UX insight cards from heatmap + scraped page data
-// Insights are stored in DB and forwarded to the chatbot context
+require('dotenv').config();
 
 const express = require('express');
 const router  = express.Router();
 const { authMiddleware } = require('../middleware/auth.middleware');
 const { supabase }       = require('../db/pool');
 const pool               = require('../db/pool');
-const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
 const { HumanMessage, SystemMessage } = require('@langchain/core/messages');
 const { validatePublicUrl } = require('../utils/validateUrl');
-require('dotenv').config();
 
-let _llm = null;
-function getLLM() {
-  if (_llm) return _llm;
-  if (process.env.GROQ_API_KEY) {
-    try {
-      const { ChatGroq } = require('@langchain/groq');
-      _llm = new ChatGroq({
-        apiKey: process.env.GROQ_API_KEY,
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-        temperature: 0.3,
-        maxTokens: 3000,
-      });
-      console.log('[Insights] Using Groq (llama-4-scout) as LLM');
-      return _llm;
-    } catch { /* @langchain/groq not installed */ }
+// ── LLM helper: Groq via groq-sdk (free 14,400 req/day) ──────────────────────
+let _groqClient = null;
+function getGroqClient() {
+  if (!_groqClient) {
+    const Groq = require('groq-sdk');
+    _groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
   }
-  _llm = new ChatGoogleGenerativeAI({
-    model: 'gemini-2.0-flash', apiKey: process.env.GEMINI_API_KEY,
-    temperature: 0.3, maxOutputTokens: 3000,
-  });
-  return _llm;
+  return _groqClient;
+}
+
+function getLLM() {
+  return {
+    async invoke(messages) {
+      const formatted = messages.map(m => {
+        const text = typeof m.content === 'string' ? m.content : String(m.content ?? '');
+        const ns = m.lc_namespace?.join('') ?? '';
+        const isSystem = ns.includes('system') || m.constructor?.name === 'SystemMessage';
+        return { role: isSystem ? 'system' : 'user', content: text };
+      });
+      const res = await getGroqClient().chat.completions.create({
+        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        messages: formatted,
+        temperature: 0.3,
+        max_tokens: 3000,
+      });
+      return { content: res.choices[0]?.message?.content ?? '' };
+    }
+  };
 }
 function safeJSON(text, fb = []) {
   if (!text) return fb;

@@ -1,10 +1,8 @@
-﻿// src/tools/heatmap.tool.js
+// src/tools/heatmap.tool.js
 require('dotenv').config();
 
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../db/pool');
-const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
-const { HumanMessage, SystemMessage } = require('@langchain/core/messages');
 const fs = require('fs');
 const path = require('path');
 
@@ -17,10 +15,23 @@ const TIME_WEIGHTS = [
   { maxMs: Infinity, weight: 1.0 },
 ];
 
-let _llm = null;
+let _groqClient = null;
 function getLLM() {
-  if (!_llm) _llm = new ChatGoogleGenerativeAI({ model: 'gemini-2.0-flash', apiKey: process.env.GEMINI_API_KEY, temperature: 0, maxOutputTokens: 2000 });
-  return _llm;
+  return {
+    async invoke(messages) {
+      if (!_groqClient) {
+        const Groq = require('groq-sdk');
+        _groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+      }
+      const res = await _groqClient.chat.completions.create({
+        model: 'llama-3.2-90b-vision-preview',
+        messages,
+        temperature: 0,
+        max_tokens: 2000,
+      });
+      return { content: res.choices[0]?.message?.content ?? '' };
+    }
+  };
 }
 
 function getTimeWeight(ms) {
@@ -99,8 +110,13 @@ async function predictHeatmap(siteUrl, pageKey, screenshotPath, domSummary) {
   }
   const prompt = 'Analyse this webpage. Predict where users look in FIRST 3s vs 3-8s.\nDOM: '+(domSummary??'N/A')+'\nReturn ONLY JSON:\n{"hot_zones":[{"x":0.0,"y":0.0,"w":0.1,"h":0.1,"score":0,"label":"above-fold","reason":""}],"above_fold_pct":0,"primary_attention":"","secondary_attention":"","design_laws_observed":[],"summary_text":""}';
   const msgs = [
-    new SystemMessage('You are an expert UI/UX eye-tracking prediction system.'),
-    imageContent ? new HumanMessage({ content: [{ type: 'text', text: prompt }, imageContent] }) : new HumanMessage(prompt),
+    { role: 'system', content: 'You are an expert UI/UX eye-tracking prediction system.' },
+    {
+      role: 'user',
+      content: imageContent
+        ? [ { type: 'text', text: prompt }, imageContent ]
+        : prompt
+    }
   ];
   const result = await getLLM().invoke(msgs);
   let parsed;

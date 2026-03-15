@@ -19,7 +19,7 @@ export default function SurveyPage() {
   const [submitError, setSubmitError] = useState('')
   const imgRef = useRef(null)
   const startTime = useRef(Date.now())
-  const MAX_CLICKS = 5
+  const MAX_CLICKS = 10
 
   useEffect(() => {
     axios.get(`${BASE}/heatmap/survey/${token}`)

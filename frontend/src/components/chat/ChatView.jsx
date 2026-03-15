@@ -333,7 +333,7 @@ export default function ChatView() {
       ) : (
         <>
           {/* Messages area */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden">
             {hasContent
               ? <MessageList onRetry={handleSend} />
               : <EmptyState onSend={handleSend} onNew={() => setShowUrlModal(true)} />

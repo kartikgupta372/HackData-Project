@@ -1,41 +1,52 @@
 // src/routes/recommendation.routes.js
+require('dotenv').config();
 const express = require('express');
 const router  = express.Router();
 const { authMiddleware } = require('../middleware/auth.middleware');
 const rec     = require('../tools/recommendation.tool');
 const { supabase } = require('../db/pool');
 const { searchBenchmarks } = require('../tools/vectorSearch.tool');
-const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
-const { HumanMessage, SystemMessage } = require('@langchain/core/messages');
-require('dotenv').config();
 const { validatePublicUrl } = require('../utils/validateUrl');
+
+// Keep LangChain message classes for constructing messages passed to getLLM()
+const { HumanMessage, SystemMessage } = require('@langchain/core/messages');
 
 const _cardCache = new Map();
 
-let _llm = null;
-function getLLM() {
-  if (_llm) return _llm;
-  // Prefer Groq (free 14,400 req/day) over Gemini to avoid quota issues
-  if (process.env.GROQ_API_KEY) {
-    try {
-      const { ChatGroq } = require('@langchain/groq');
-      _llm = new ChatGroq({
-        apiKey: process.env.GROQ_API_KEY,
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-        temperature: 0.3,
-        maxTokens: 4096,
-      });
-      console.log('[Recs] Using Groq (llama-4-scout) as LLM');
-      return _llm;
-    } catch { /* @langchain/groq not installed, fall through */ }
+// ── LLM helper: uses Groq (groq-sdk, free 14,400 req/day) ────────────────────
+// Wraps groq-sdk with the same .invoke([SystemMessage, HumanMessage]) interface
+// so the rest of the file needs zero changes.
+let _groqClient = null;
+function getGroqClient() {
+  if (!_groqClient) {
+    const Groq = require('groq-sdk');
+    _groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
   }
-  _llm = new ChatGoogleGenerativeAI({
-    model: 'gemini-2.0-flash',
-    apiKey: process.env.GEMINI_API_KEY,
-    temperature: 0.3,
-    maxOutputTokens: 4096,
-  });
-  return _llm;
+  return _groqClient;
+}
+
+// Lightweight LangChain-compatible wrapper around groq-sdk
+function getLLM() {
+  return {
+    async invoke(messages) {
+      // messages is an array of SystemMessage / HumanMessage objects
+      // Each has a .content string property
+      const formatted = messages.map(m => {
+        const text = typeof m.content === 'string' ? m.content : String(m.content ?? '');
+        // Detect role from class name or lc_namespace
+        const ns = m.lc_namespace?.join('') ?? '';
+        const isSystem = ns.includes('system') || m.constructor?.name === 'SystemMessage';
+        return { role: isSystem ? 'system' : 'user', content: text };
+      });
+      const res = await getGroqClient().chat.completions.create({
+        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        messages: formatted,
+        temperature: 0.3,
+        max_tokens: 4096,
+      });
+      return { content: res.choices[0]?.message?.content ?? '' };
+    }
+  };
 }
 
 function safeJSON(text, fb = []) {

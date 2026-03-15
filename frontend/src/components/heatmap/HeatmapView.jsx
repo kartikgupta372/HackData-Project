@@ -302,11 +302,16 @@ function SurveyDetail({ survey, results, onCopy, copied, onCompute, computing, o
                   </div>
                 )}
                 {!hm?.grid_data && clicks.slice(0, 100).map((c, i) => (
-                  <div key={i} className="absolute w-3 h-3 rounded-full border-2 border-white/60"
+                  <div key={i} className="absolute w-24 h-24 rounded-full pointer-events-none mix-blend-screen"
                     style={{
-                      left: `calc(${c.x_pct * 100}% - 6px)`, top: `calc(${c.y_pct * 100}% - 6px)`,
-                      background: c.click_order === 1 ? 'rgba(255,50,50,0.7)' : c.click_order === 2 ? 'rgba(255,160,0,0.7)' : 'rgba(0,200,255,0.7)',
-                      boxShadow: '0 0 6px rgba(0,0,0,0.5)'
+                      left: `calc(${c.x_pct * 100}% - 48px)`, top: `calc(${c.y_pct * 100}% - 48px)`,
+                      background: c.click_order === 1 
+                        ? 'radial-gradient(circle, rgba(255,50,50,0.85) 0%, rgba(255,80,0,0.4) 50%, transparent 80%)' 
+                        : c.click_order === 2 
+                        ? 'radial-gradient(circle, rgba(255,160,0,0.85) 0%, rgba(255,200,0,0.4) 50%, transparent 80%)' 
+                        : 'radial-gradient(circle, rgba(0,200,255,0.85) 0%, rgba(0,100,255,0.4) 50%, transparent 80%)',
+                      filter: 'blur(10px)',
+                      opacity: 0.9,
                     }} />
                 ))}
               </div>

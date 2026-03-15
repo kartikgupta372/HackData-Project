@@ -1,9 +1,8 @@
 // src/routes/chat.routes.js
-// Direct Gemini streaming chat — with Groq fallback when Gemini hits quota
+// Direct Groq streaming chat
 require('dotenv').config();
 const express    = require('express');
 const rateLimit  = require('express-rate-limit');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { authMiddleware } = require('../middleware/auth.middleware');
 const chatMemory = require('../memory/chatMemory');
 const pool       = require('../db/pool');
@@ -24,21 +23,11 @@ const chatLimiter = rateLimit({
 
 const activeRequestKeys = new Set();
 
-// ── Gemini client ─────────────────────────────────────────────────────────────
-let _genAI = null;
-function getGenAI() {
-  if (!_genAI) {
-    if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not set.');
-    _genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  }
-  return _genAI;
-}
-
-// ── Groq fallback client (OpenAI-compatible, free tier: 14,400 req/day) ──────
+// ── Groq client ──────────────────────────────────────────────────────────────
 let _groq = null;
 function getGroq() {
   if (_groq) return _groq;
-  if (!process.env.GROQ_API_KEY) return null;
+  if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY is not set.');
   try {
     const Groq = require('groq-sdk');
     _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -46,28 +35,20 @@ function getGroq() {
   } catch { return null; }
 }
 
-// Returns true if the error is a Gemini quota / rate-limit error
-function isQuotaError(err) {
-  const msg = String(err?.message || err?.status || '').toLowerCase();
-  return msg.includes('quota') || msg.includes('429') || msg.includes('resource_exhausted') || err?.status === 429;
-}
-
 // ── Groq streaming helper — streams tokens via emit, returns full response ────
 async function streamWithGroq(systemPrompt, chatHistory, userMessage, emit) {
   const groq = getGroq();
-  if (!groq) throw new Error('GROQ_API_KEY not set — add it to .env as fallback');
+  if (!groq) throw new Error('GROQ_API_KEY not set — add it to .env');
 
-  emit('stage', { stage:'generating', message:'Gemini quota hit — using Groq (llama-4-scout) as fallback...', progress:40 });
-
-  // Convert Gemini history format → OpenAI format
+  // Convert history format → OpenAI format
   const messages = [
     { role: 'system', content: systemPrompt },
-    ...chatHistory.map(m => ({ role: m.role === 'model' ? 'assistant' : m.role, content: m.parts?.[0]?.text ?? '' })),
+    ...chatHistory.map(m => ({ role: m.role === 'model' || m.role === 'assistant' ? 'assistant' : m.role, content: m.content || m.parts?.[0]?.text || '' })),
     { role: 'user', content: userMessage },
   ];
 
   const stream = await groq.chat.completions.create({
-    model: 'meta-llama/llama-4-scout-17b-16e-instruct', // best free Groq model
+    model: 'llama-3.3-70b-versatile',
     messages,
     max_tokens: 4096,
     stream: true,
@@ -377,43 +358,19 @@ router.post('/message', authMiddleware, chatLimiter, async (req, res) => {
 
     // 4. Build system prompt with ALL context (onboarding + scrape + heatmap + style + docs)
     const systemPrompt = buildSystemPrompt(onboarding, scrapedPages, siteUrl, sessionFormData, heatmapContext);
-    const model = getGenAI().getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      systemInstruction: systemPrompt,
-      generationConfig: { maxOutputTokens: 4096 },
-    });
 
-    // 5. Build Gemini chat history (exclude the current user message — sent via sendMessageStream)
+    // 5. Build chat history (exclude the current user message — sent separately)
     const historyForContext = history.length > 0 && history[history.length - 1].role === 'user'
       ? history.slice(0, -1) : history;
-    const chatHistory = historyForContext.map(msg =>
-      msg.role === 'user'
-        ? { role:'user',  parts:[{ text:msg.content }] }
-        : { role:'model', parts:[{ text:msg.content }] }
-    );
+    const chatHistory = historyForContext.map(msg => ({
+      role: msg.role === 'model' || msg.role === 'assistant' ? 'assistant' : 'user',
+      content: msg.content
+    }));
 
-    const chat = model.startChat({ history: chatHistory });
     emit('stage', { stage:'generating', message:'Generating response...', progress:40 });
 
-    // 6. Stream — try Gemini first, auto-fallback to Groq on quota error
-    let fullResponse = '';
-    let usedGroq = false;
-    try {
-      const streamResult = await chat.sendMessageStream(message);
-      for await (const chunk of streamResult.stream) {
-        const token = chunk.text();
-        if (token) { fullResponse += token; emit('token', { token }); }
-      }
-    } catch (streamErr) {
-      if (isQuotaError(streamErr)) {
-        // Gemini quota hit — silently switch to Groq
-        console.log('[Chat] Gemini quota hit — falling back to Groq');
-        fullResponse = await streamWithGroq(systemPrompt, chatHistory, message, emit);
-        usedGroq = true;
-      } else {
-        throw streamErr;
-      }
-    }
+    // 6. Stream using Groq
+    const fullResponse = await streamWithGroq(systemPrompt, chatHistory, message, emit);
 
     // 7. Sanitize (strip code comments, meta-text, garbage) then save
     const cleanResponse = sanitizeChatResponse(fullResponse);
@@ -427,14 +384,13 @@ router.post('/message', authMiddleware, chatLimiter, async (req, res) => {
     const rawMsg = err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || 'Unknown error';
     console.error('Chat error:', rawMsg);
     const lower = String(rawMsg).toLowerCase();
-    if (lower.includes('quota') || lower.includes('resource_exhausted') || lower.includes('429')) {
-      // Both Gemini and Groq failed — tell user clearly
+    if (lower.includes('quota') || lower.includes('rate limit') || lower.includes('429')) {
       emit('error', {
-        error: 'Both Gemini and Groq quota limits reached. Wait 1-2 minutes and try again, or add GROQ_API_KEY to your .env for automatic fallback.',
+        error: 'Groq quota limits reached. Wait a few minutes and try again.',
         retryable: true,
       });
-    } else if (err?.response?.status === 401 || err?.response?.status === 403) {
-      emit('error', { error:'Gemini API key unauthorized. Verify GEMINI_API_KEY.' });
+    } else if (err?.status === 401 || err?.response?.status === 401 || err?.response?.status === 403) {
+      emit('error', { error:'Groq API key unauthorized. Verify GROQ_API_KEY in .env.' });
     } else {
       emit('error', { error: rawMsg });
     }

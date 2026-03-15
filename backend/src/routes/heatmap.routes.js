@@ -13,10 +13,29 @@ const { HumanMessage, SystemMessage } = require('@langchain/core/messages');
 const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
-let _llm = null;
+// ── LLM: Groq via groq-sdk (free 14,400 req/day) ─────────────────────────────
+let _groqClient = null;
 function getLLM() {
-  if (!_llm) _llm = new ChatGoogleGenerativeAI({ model: 'gemini-2.0-flash', apiKey: process.env.GEMINI_API_KEY, temperature: 0 });
-  return _llm;
+  return {
+    async invoke(messages) {
+      if (!_groqClient) {
+        const Groq = require('groq-sdk');
+        _groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+      }
+      const formatted = messages.map(m => {
+        const text = typeof m.content === 'string' ? m.content : String(m.content ?? '');
+        const isSystem = m.lc_namespace?.join('').includes('system') || m.constructor?.name === 'SystemMessage';
+        return { role: isSystem ? 'system' : 'user', content: text };
+      });
+      const res = await _groqClient.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: formatted,
+        temperature: 0,
+        max_tokens: 1024,
+      });
+      return { content: res.choices[0]?.message?.content ?? '' };
+    }
+  };
 }
 function safeJSON(t, fb = {}) {
   try { return JSON.parse(t.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim()); } catch { return fb; }
@@ -81,8 +100,8 @@ router.post('/create-survey', authMiddleware, async (req, res) => {
       screenshot_url:    screenshotUrl,
       screenshot_width:  screenshotWidth ?? 1280,
       screenshot_height: screenshotHeight ?? 3000,
-      title:             title ?? `Heatmap Survey â€” ${pageKey}`,
-      instructions:      instructions ?? 'Click on the areas of this page that catch your attention first. Add up to 5 clicks.',
+      title:             title ?? `Heatmap Survey — ${pageKey}`,
+      instructions:      instructions ?? 'Click on the areas of this page that catch your attention first. Add up to 10 clicks.',
     }).select().single();
     if (error) throw new Error(error.message);
     const surveyUrl = `${process.env.FRONTEND_URL ?? 'http://localhost:5173'}/survey/${data.token}`;
