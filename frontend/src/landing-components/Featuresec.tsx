@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { DotPattern } from "@/landing-components/ui/dot-pattern";
+import { DotPattern } from "@/components/ui/dot-pattern";
 import { animate, motion, useScroll, useTransform } from "framer-motion";
 
 interface GlowingEffectProps {
@@ -258,10 +258,10 @@ export function FeaturesSection() {
         >
           <div className="mb-16 text-center">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              We Solve What Your Web Miss
+              We Solve What Your Web Misses
             </h2>
             <p className="text-zinc-400 text-lg max-w-2xl mx-auto">
-              AI Toolkit that will transform your website design workflow.
+              AI-powered UX intelligence that analyzes user behavior, reveals hidden design problems, and generates actionable improvements.
             </p>
           </div>
           
@@ -269,13 +269,13 @@ export function FeaturesSection() {
             <GridItem
               area="md:[grid-area:1/1/2/7] xl:[grid-area:1/1/2/5]"
               icon={<Box className="h-4 w-4 text-white" />}
-              title="AI-Driven Layouts"
-              description="Our AI analyzes your content to generate the most converting layouts automatically."
+              title="AI-Powered Website Analysis"
+              description="Our AI scans your website’s structure, layout, and design patterns to detect UX issues, weak visual hierarchy, and conversion blockers instantly."
             />
             <GridItem
               area="md:[grid-area:1/7/2/13] xl:[grid-area:1/5/2/9]"
               icon={<Settings className="h-4 w-4 text-white" />}
-              title="Seamless Optimization"
+              title="AI-Powered Heatmaps"
               description="Automatically fine-tune your design elements for maximum engagement and performance."
             />
             <GridItem
