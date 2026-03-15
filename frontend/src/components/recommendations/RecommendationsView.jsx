@@ -62,7 +62,11 @@ export default function RecommendationsView() {
 
   const handleUrlApply = () => {
     let url = inputUrl.trim()
-    if (url && !/^https?:\/\//.test(url)) url = 'https://' + url
+    if (url) {
+      if (/^https?:\/\//i.test(url)) { /* already fine */ }
+      else if (/^www\./i.test(url)) url = 'https://' + url
+      else if (url.includes('.')) url = 'https://' + url
+    }
     setInputUrl(url)
     setSiteUrl(url)
     setGenError('')

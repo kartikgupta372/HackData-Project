@@ -54,7 +54,11 @@ function NewSessionModal({ onSubmit, onSkip, loading }) {
   const handleSubmit = (e) => {
     e.preventDefault()
     let trimmed = url.trim()
-    if (trimmed && !/^https?:\/\//.test(trimmed)) trimmed = 'https://' + trimmed
+    if (trimmed) {
+      if (/^https?:\/\//i.test(trimmed)) { /* already has protocol */ }
+      else if (/^www\./i.test(trimmed)) trimmed = 'https://' + trimmed
+      else if (trimmed.includes('.')) trimmed = 'https://' + trimmed
+    }
     onSubmit({ url: trimmed || null, domain: domain || null, intent: intent || null })
   }
 
@@ -88,10 +92,10 @@ function NewSessionModal({ onSubmit, onSkip, loading }) {
             <Globe className="w-4 h-4 text-aura-faint shrink-0" />
             <input
               ref={inputRef}
-              type="url"
+              type="text"
               value={url}
               onChange={e => setUrl(e.target.value)}
-              placeholder="https://yourwebsite.com"
+              placeholder="yourwebsite.com or www.yoursite.com"
               className="flex-1 bg-transparent text-sm text-aura-text placeholder:text-aura-faint outline-none"
             />
             {url && (

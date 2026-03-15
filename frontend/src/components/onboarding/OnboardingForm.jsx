@@ -64,10 +64,21 @@ export default function OnboardingForm({ onComplete }) {
     }
   }, [])
 
+  // Normalise URL — add https:// if missing, handle www. and bare domains
+  const normaliseUrl = (raw) => {
+    const t = raw.trim()
+    if (!t) return t
+    if (/^https?:\/\//i.test(t)) return t          // already has protocol
+    if (/^www\./i.test(t)) return 'https://' + t    // www.example.com
+    if (t.includes('.')) return 'https://' + t       // example.com
+    return t
+  }
+
   const validate = () => {
     const e = {}
-    if (!url.trim()) e.url = 'Website URL is required'
-    else if (!/^https?:\/\/.+/.test(url.trim())) e.url = 'Must start with https:// e.g. https://yoursite.com'
+    const normalised = normaliseUrl(url)
+    if (!normalised) e.url = 'Website URL is required'
+    else if (!/^https?:\/\/.+\..+/.test(normalised)) e.url = 'Enter a valid URL e.g. yoursite.com'
     if (!domain) e.domain = 'Please select a domain type'
     if (!intent) e.intent = 'Please select your main goal'
     return e
@@ -79,8 +90,9 @@ export default function OnboardingForm({ onComplete }) {
     if (Object.keys(v).length) { setErrors(v); return }
     setErrors({}); setSubmitError(''); setLoading(true)
     try {
+      const cleanUrl = normaliseUrl(url)
       const res = await onboardingApi.submit({
-        intent, url: url.trim(), domain,
+        intent, url: cleanUrl, domain,
         style_preference: stylePreference,
         other_info: otherInfo,
         document_urls: uploadedFiles.map(f => f.url),

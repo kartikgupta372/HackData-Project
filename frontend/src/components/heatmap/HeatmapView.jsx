@@ -413,11 +413,22 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const normaliseUrl = (raw) => {
+    const t = raw.trim()
+    if (!t) return t
+    if (/^https?:\/\//i.test(t)) return t
+    if (/^www\./i.test(t)) return 'https://' + t
+    if (t.includes('.')) return 'https://' + t
+    return t
+  }
+
   const handleScreenshot = async () => {
     if (!url.trim()) { setError('URL required'); return }
+    const cleanUrl = normaliseUrl(url)
+    setUrl(cleanUrl)  // update the input to show normalised URL
     setLoading(true); setError('')
     try {
-      const res = await heatmapApi.screenshot({ url: url.trim(), pageKey })
+      const res = await heatmapApi.screenshot({ url: cleanUrl, pageKey })
       setScreenshotData(res.data.data)
       setStep('confirm')
     } catch (err) {
@@ -431,8 +442,9 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
   const handleCreate = async () => {
     setLoading(true); setError('')
     try {
+      const finalUrl = normaliseUrl(url)
       const res = await heatmapApi.createSurvey({
-        siteUrl: url.trim(), pageKey, pageUrl: url.trim(),
+        siteUrl: finalUrl, pageKey, pageUrl: finalUrl,
         screenshotUrl: screenshotData?.screenshot_url,
         screenshotWidth: 1280, screenshotHeight: 3000,
         title: title || `Heatmap Survey \u2014 ${pageKey}`,
@@ -460,7 +472,7 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
           {step === 'url' && <>
             <div>
               <label className="text-xs text-aura-muted uppercase tracking-wide mb-1.5 block">Website URL *</label>
-              <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://yoursite.com"
+              <input value={url} onChange={e => setUrl(e.target.value)} placeholder="yoursite.com or www.yoursite.com"
                 className="w-full bg-aura-elevated border border-aura-border focus:border-aura-accent rounded-lg px-3.5 py-2.5 text-sm text-aura-text placeholder:text-aura-faint outline-none transition-all" />
             </div>
             <div>

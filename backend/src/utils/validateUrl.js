@@ -2,8 +2,12 @@
 function validatePublicUrl(raw) {
   if (!raw || typeof raw !== 'string') return null;
   try {
-    const trimmed = raw.trim();
+    let trimmed = raw.trim();
     if (trimmed.length > 2048) return null;
+    // Auto-add https:// for www. and bare domains (e.g. www.stripe.com, stripe.com)
+    if (!/^https?:\/\//i.test(trimmed)) {
+      trimmed = 'https://' + trimmed;
+    }
     const p = new URL(trimmed);
     if (!['http:', 'https:'].includes(p.protocol)) return null;
     const h = p.hostname.toLowerCase();
