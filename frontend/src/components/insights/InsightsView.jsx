@@ -36,9 +36,18 @@ export default function InsightsView() {
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError]     = useState('')
   const [statusMsg, setStatusMsg]   = useState('')
+  const [siteUrl, setSiteUrl] = useState(onboardingData?.url || '')
+  const [inputUrl, setInputUrl] = useState(onboardingData?.url || '')
   const qc = useQueryClient()
 
-  const siteUrl = onboardingData?.url || ''
+  const normaliseUrl = (raw) => {
+    const t = raw.trim()
+    if (!t) return t
+    if (/^https?:\/\//i.test(t)) return t
+    if (/^www\./i.test(t)) return 'https://' + t
+    if (t.includes('.')) return 'https://' + t
+    return t
+  }
 
   const { data: insights = [], isLoading } = useQuery({
     queryKey: ['insights', activeTab, siteUrl],
@@ -91,15 +100,32 @@ export default function InsightsView() {
           </p>
         </div>
 
-        {siteUrl && (
-          <div className="px-4 py-3 border-b border-aura-line">
-            <p className="text-xs text-aura-faint uppercase tracking-wide mb-1">Analysing</p>
-            <p className="text-xs text-aura-accent font-mono truncate">{siteUrl}</p>
+        {/* URL filter / setter */}
+        <div className="p-3 border-b border-aura-line">
+          <div className="flex gap-1.5">
+            <input value={inputUrl} onChange={e => setInputUrl(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  const s = normaliseUrl(inputUrl)
+                  setInputUrl(s); setSiteUrl(s);
+                }
+              }}
+              placeholder="Site URL to analyse..."
+              className="flex-1 bg-aura-card border border-aura-border rounded-lg px-2.5 py-1.5 text-xs text-aura-text placeholder:text-aura-faint outline-none focus:border-aura-accent transition-all" />
+            <button onClick={() => {
+              const s = normaliseUrl(inputUrl)
+              setInputUrl(s); setSiteUrl(s);
+            }}
+              className="px-2 py-1.5 bg-aura-accent hover:bg-aura-accent-dim text-white rounded-lg text-xs transition-all">{'→'}</button>
           </div>
-        )}
+        </div>
 
         <div className="p-4 border-b border-aura-line">
-          <button onClick={handleGenerate} disabled={generating}
+          <button onClick={() => {
+            const s = normaliseUrl(inputUrl);
+            setInputUrl(s); setSiteUrl(s);
+            handleGenerate();
+          }} disabled={generating}
             className="w-full flex items-center justify-center gap-2 bg-aura-accent hover:bg-aura-accent-dim disabled:opacity-40 text-white text-xs font-medium px-3 py-2.5 rounded-lg transition-all">
             {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
             {generating ? 'Analysing...' : 'Generate Insights'}
