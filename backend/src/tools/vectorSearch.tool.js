@@ -4,7 +4,7 @@
 // Falls back to Supabase DB query if Pinecone is unavailable
 
 const { Pinecone } = require('@pinecone-database/pinecone');
-const { GoogleGenerativeAIEmbeddings } = require('@langchain/google-genai');
+const axios = require('axios');
 const pool = require('../db/pool');
 require('dotenv').config();
 
@@ -29,10 +29,17 @@ async function init() {
     process.env.PINECONE_INDEX_BENCHMARKS ?? 'aura-benchmarks'
   );
 
-  embedder = new GoogleGenerativeAIEmbeddings({
-    apiKey: process.env.GEMINI_API_KEY,
-    model: 'gemini-embedding-001', // 3072d
-  });
+  // Embedder: direct Gemini REST API via axios (no LangChain)
+  embedder = {
+    async embedQuery(text) {
+      const res = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${process.env.GEMINI_API_KEY}`,
+        { content: { parts: [{ text }] } },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      return res.data?.embedding?.values ?? [];
+    }
+  };
 }
 
 /**

@@ -7,7 +7,7 @@ const router  = express.Router();
 const { authMiddleware } = require('../middleware/auth.middleware');
 const { supabase }       = require('../db/pool');
 const pool               = require('../db/pool');
-const { HumanMessage, SystemMessage } = require('@langchain/core/messages');
+// LangChain removed — using plain {role,content} objects with groq-sdk directly
 const { validatePublicUrl } = require('../utils/validateUrl');
 
 // ── LLM helper: Groq via groq-sdk (free 14,400 req/day) ──────────────────────
@@ -23,12 +23,10 @@ function getGroqClient() {
 function getLLM() {
   return {
     async invoke(messages) {
-      const formatted = messages.map(m => {
-        const text = typeof m.content === 'string' ? m.content : String(m.content ?? '');
-        const ns = m.lc_namespace?.join('') ?? '';
-        const isSystem = ns.includes('system') || m.constructor?.name === 'SystemMessage';
-        return { role: isSystem ? 'system' : 'user', content: text };
-      });
+      const formatted = messages.map(m => ({
+        role: m.role || 'user',
+        content: typeof m.content === 'string' ? m.content : String(m.content ?? ''),
+      }));
       const res = await getGroqClient().chat.completions.create({
         model: 'meta-llama/llama-4-scout-17b-16e-instruct',
         messages: formatted,
@@ -91,12 +89,10 @@ router.post('/generate', authMiddleware, async (req, res) => {
     }
 
     const result = await getLLM().invoke([
-      new SystemMessage(
-        `You are an expert UX researcher analysing website behavioral data. Generate actionable insight cards based on heatmap attention data and page structure.
+      { role: 'system', content: `You are an expert UX researcher analysing website behavioral data. Generate actionable insight cards based on heatmap attention data and page structure.
 Each insight must be specific, evidence-based, and reference the exact page and element affected.
-Return ONLY a JSON array — no markdown, no preamble.`
-      ),
-      new HumanMessage(
+Return ONLY a JSON array — no markdown, no preamble.` },
+      { role: 'user', content:
         `Website: ${cleanUrl}\n\n` +
         (heatmapContext ? `HEATMAP DATA:\n${heatmapContext}\n\n` : '') +
         (scrapedContext ? `PAGE STRUCTURE:\n${scrapedContext}\n\n` : '') +
@@ -114,7 +110,7 @@ Return ONLY a JSON array — no markdown, no preamble.`
         `    "recommendation": "concrete action to fix this"\n` +
         `  }\n` +
         `]`
-      ),
+      },
     ]);
 
     const insights = safeJSON(result.content, []);

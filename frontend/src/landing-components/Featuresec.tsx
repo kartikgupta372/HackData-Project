@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { DotPattern } from "@/components/ui/dot-pattern";
+import { DotPattern } from "@/landing-components/ui/dot-pattern";
 import { animate, motion, useScroll, useTransform } from "framer-motion";
 
 interface GlowingEffectProps {

@@ -8,8 +8,7 @@ const heatmap = require('../tools/heatmap.tool');
 const pool    = require('../db/pool');
 const { supabase } = require('../db/pool');
 const scraper = require('../tools/scraper.tool');
-const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
-const { HumanMessage, SystemMessage } = require('@langchain/core/messages');
+// LangChain removed — using plain {role,content} objects with groq-sdk directly
 const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
@@ -22,11 +21,10 @@ function getLLM() {
         const Groq = require('groq-sdk');
         _groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
       }
-      const formatted = messages.map(m => {
-        const text = typeof m.content === 'string' ? m.content : String(m.content ?? '');
-        const isSystem = m.lc_namespace?.join('').includes('system') || m.constructor?.name === 'SystemMessage';
-        return { role: isSystem ? 'system' : 'user', content: text };
-      });
+      const formatted = messages.map(m => ({
+        role: m.role || 'user',
+        content: typeof m.content === 'string' ? m.content : String(m.content ?? ''),
+      }));
       const res = await _groqClient.chat.completions.create({
         model: 'llama-3.3-70b-versatile',
         messages: formatted,
@@ -269,8 +267,8 @@ router.post('/bundle', authMiddleware, async (req, res) => {
     let aiSummary = '';
     try {
       const r = await getLLM().invoke([
-        new SystemMessage('You are a UX analyst. Summarize the heatmap data insights for a developer in 3-4 bullet points.'),
-        new HumanMessage(`Site: ${siteUrl}\n\n${summaryPrompt}\n\nSummarize key attention patterns and what they mean for UX.`),
+        { role: 'system', content: 'You are a UX analyst. Summarize the heatmap data insights for a developer in 3-4 bullet points.' },
+        { role: 'user', content: `Site: ${siteUrl}\n\n${summaryPrompt}\n\nSummarize key attention patterns and what they mean for UX.` },
       ]);
       aiSummary = r.content;
     } catch { aiSummary = 'Bundle ready for analysis.'; }

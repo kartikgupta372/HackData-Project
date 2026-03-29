@@ -8,8 +8,7 @@ const { supabase } = require('../db/pool');
 const { searchBenchmarks } = require('../tools/vectorSearch.tool');
 const { validatePublicUrl } = require('../utils/validateUrl');
 
-// Keep LangChain message classes for constructing messages passed to getLLM()
-const { HumanMessage, SystemMessage } = require('@langchain/core/messages');
+// LangChain removed — using plain {role,content} objects with groq-sdk directly
 
 const _cardCache = new Map();
 
@@ -31,13 +30,10 @@ function getLLM() {
     async invoke(messages) {
       // messages is an array of SystemMessage / HumanMessage objects
       // Each has a .content string property
-      const formatted = messages.map(m => {
-        const text = typeof m.content === 'string' ? m.content : String(m.content ?? '');
-        // Detect role from class name or lc_namespace
-        const ns = m.lc_namespace?.join('') ?? '';
-        const isSystem = ns.includes('system') || m.constructor?.name === 'SystemMessage';
-        return { role: isSystem ? 'system' : 'user', content: text };
-      });
+      const formatted = messages.map(m => ({
+        role: m.role || 'user',
+        content: typeof m.content === 'string' ? m.content : String(m.content ?? ''),
+      }));
       const res = await getGroqClient().chat.completions.create({
         model: 'meta-llama/llama-4-scout-17b-16e-instruct',
         messages: formatted,
@@ -188,8 +184,7 @@ router.post('/generate-cards', authMiddleware, async (req, res) => {
 
     // 6. Generate cards with AI
     const result = await getLLM().invoke([
-      new SystemMessage(
-        `You are a senior UI/UX consultant doing a formal benchmark comparison for a client website.
+      { role: 'system', content: `You are a senior UI/UX consultant doing a formal benchmark comparison for a client website.
 Compare the client's site against the top sites in their industry. Generate specific, actionable change cards.
 Rules:
 - Each card MUST name one specific benchmark site as inspiration
@@ -198,9 +193,8 @@ Rules:
 - Describe the gap between the client site and the benchmark clearly in the description
 - before_snippet = what the current site likely has / lacks
 - after_snippet = what it should look like, inspired by the benchmark
-Return ONLY a valid JSON array. No markdown, no text outside the array.`
-      ),
-      new HumanMessage(
+Return ONLY a valid JSON array. No markdown, no text outside the array.` },
+      { role: 'user', content:
         `== CLIENT WEBSITE ==\n${userCtx}\n\n` +
         `== TOP ${benchmarks.length} BENCHMARK SITES IN ${siteType.toUpperCase()} DOMAIN ==\n${benchmarkContext}\n\n` +
         `== CURRENT ANALYSIS ==\n${analysisCtx}\n\n` +
@@ -218,7 +212,7 @@ Return ONLY a valid JSON array. No markdown, no text outside the array.`
         `    "impact_level": "high|medium|low",\n` +
         `    "page_key": "homepage|about|pricing|contact|etc"\n` +
         `  }\n]`
-      ),
+      },
     ]);
 
     const cards = safeJSON(result.content, []);
@@ -451,8 +445,8 @@ router.post('/vibe-prompt', authMiddleware, async (req, res) => {
     ).join('\n\n');
 
     const prompt = await getLLM().invoke([
-      new SystemMessage('You are a senior UI/UX engineer writing a detailed implementation prompt for an AI coding assistant. Be specific and technical.'),
-      new HumanMessage(
+      { role: 'system', content: 'You are a senior UI/UX engineer writing a detailed implementation prompt for an AI coding assistant. Be specific and technical.' },
+      { role: 'user', content:
         `Generate a Vibe-Coding implementation prompt for ${cards.length} approved design changes on ${site}.\n\n` +
         `This prompt will be pasted into Cursor, GitHub Copilot, or a similar AI tool connected to the repo.\n\n` +
         `APPROVED CHANGES:\n${changeList}\n\n` +
@@ -463,7 +457,7 @@ router.post('/vibe-prompt', authMiddleware, async (req, res) => {
         `4. Include before/after for each element\n` +
         `5. End with: preserve brand colors, maintain responsiveness, don't break existing layout\n\n` +
         `Format as a single copy-paste-ready prompt.`
-      ),
+      },
     ]);
 
     res.json({ success: true, data: { prompt: prompt.content, card_count: cards.length, site_url: site } });
