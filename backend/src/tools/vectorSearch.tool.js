@@ -1,10 +1,5 @@
-// src/tools/vectorSearch.tool.js
-// Pinecone RAG — retrieves benchmark sites by semantic similarity
-// Uses Gemini gemini-embedding-001 (3072d) for real vector search
-// Falls back to Supabase DB query if Pinecone is unavailable
-
 const { Pinecone } = require('@pinecone-database/pinecone');
-const axios = require('axios');
+const { GoogleGenerativeAIEmbeddings } = require('@langchain/google-genai');
 const pool = require('../db/pool');
 require('dotenv').config();
 
@@ -29,23 +24,12 @@ async function init() {
     process.env.PINECONE_INDEX_BENCHMARKS ?? 'aura-benchmarks'
   );
 
-  // Embedder: direct Gemini REST API via axios (no LangChain)
-  embedder = {
-    async embedQuery(text) {
-      const res = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${process.env.GEMINI_API_KEY}`,
-        { content: { parts: [{ text }] } },
-        { headers: { 'Content-Type': 'application/json' } }
-      );
-      return res.data?.embedding?.values ?? [];
-    }
-  };
+  embedder = new GoogleGenerativeAIEmbeddings({
+    apiKey: process.env.GEMINI_API_KEY,
+    model: 'gemini-embedding-001',
+  });
 }
 
-/**
- * Build a rich query string from siteType + designStyle so the
- * semantic search finds relevant benchmark sites.
- */
 function buildQueryText(siteType, designStyle) {
   const parts = [`Site type: ${siteType ?? 'general'}`];
   if (designStyle) parts.push(`Design style: ${designStyle}`);
@@ -54,14 +38,9 @@ function buildQueryText(siteType, designStyle) {
   return parts.join('. ');
 }
 
-/**
- * Search for top benchmark sites matching siteType + designStyle.
- * Returns array of benchmark objects.
- */
 async function searchBenchmarks({ siteType, designStyle, topK = 5 }) {
   await init();
 
-  // ── Pinecone semantic vector search ───────────────────────────────────────
   if (pineconeIndex && embedder) {
     try {
       const queryText = buildQueryText(siteType, designStyle);
@@ -86,8 +65,6 @@ async function searchBenchmarks({ siteType, designStyle, topK = 5 }) {
         }));
       }
 
-      // If filter returned nothing (e.g. new site_type not in index),
-      // retry without the filter to get best general matches
       if (siteType) {
         const fallbackResults = await pineconeIndex.query({
           vector: queryVector,
@@ -111,7 +88,6 @@ async function searchBenchmarks({ siteType, designStyle, topK = 5 }) {
     }
   }
 
-  // ── DB fallback (no Pinecone or query failed) ─────────────────────────────
   const { rows } = await pool.query(
     `SELECT * FROM benchmark_sites
      WHERE ($1::text IS NULL OR site_type = $1)

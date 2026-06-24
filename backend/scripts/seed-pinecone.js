@@ -1,17 +1,12 @@
-// scripts/seed-pinecone.js
-// Seeds Pinecone index + Supabase benchmark_sites table
-// Run: node scripts/seed-pinecone.js
-
 require('dotenv').config();
 const { Pinecone } = require('@pinecone-database/pinecone');
 const { GoogleGenerativeAIEmbeddings } = require('@langchain/google-genai');
 const { createClient } = require('@supabase/supabase-js');
 
 const INDEX_NAME = process.env.PINECONE_INDEX_BENCHMARKS ?? 'aura-benchmarks';
-const DIMENSIONS = 3072; // gemini-embedding-001 via LangChain
+const DIMENSIONS = 3072;
 
 const BENCHMARKS = [
-  // ECOMMERCE
   { id:'ecomm-apple', site_type:'ecommerce', name:'Apple Store', url:'https://apple.com/store',
     description:"Premium ecommerce with cinematic product photography and minimalist navigation. Every CTA above the fold. Single-column product focus eliminates Hick's Law overload.",
     design_notes:'Extreme whitespace, sticky nav, product-hero layout, F-pattern content, one-click purchase',
@@ -29,10 +24,9 @@ const BENCHMARKS = [
     design_notes:'Pastel palette, community photos, inline social proof, sticky cart, review integration',
     tags:['pastel','community','social-proof','beauty','high-contrast-cta'], awwwards_score:89 },
   { id:'ecomm-nike', site_type:'ecommerce', name:'Nike', url:'https://nike.com',
-    description:'Athletic apparel giant with action-first photography, bold typography, and motion-driven product reveals. Category pages use progressive filtering to reduce Hick\'s Law decision overload.',
+    description:"Athletic apparel giant with action-first photography, bold typography, and motion-driven product reveals. Category pages use progressive filtering to reduce Hick's Law decision overload.",
     design_notes:'Action photography, motion reveals, progressive filtering, bold type, hero-first',
     tags:['bold','action','motion','athletic','hero-first'], awwwards_score:87 },
-  // SAAS
   { id:'saas-linear', site_type:'saas', name:'Linear', url:'https://linear.app',
     description:'Project management SaaS with dark, engineering-focused design. Hero uses product screenshot immediately. Navigation is sparse — zero cognitive load on entry.',
     design_notes:'Dark mode, product-in-hero, sparse nav, keyboard shortcut emphasis, engineering brand',
@@ -61,7 +55,6 @@ const BENCHMARKS = [
     description:'Email SaaS built on speed narrative. Dark, focused design with a single waitlist CTA. Testimonials from high-signal influencers replace generic social proof.',
     design_notes:'Speed narrative, dark focus, single CTA, influencer testimonials, keyboard-first product',
     tags:['dark','speed','single-cta','influencer-proof','keyboard'], awwwards_score:91 },
-  // PORTFOLIO
   { id:'port-awwwards', site_type:'portfolio', name:'Awwwards SOTD Pattern', url:'https://awwwards.com',
     description:'Award-winning portfolio patterns: full-viewport hero, custom cursor, horizontal scroll, micro-interactions on hover, bespoke typography.',
     design_notes:'Full-viewport hero, custom cursor, horizontal scroll, micro-interactions, bespoke type',
@@ -74,7 +67,6 @@ const BENCHMARKS = [
     description:'Portfolio builder showcasing case-study-first layouts, large image grids, and project meta in the F-pattern reading zone. Password-protected work is positioned as premium.',
     design_notes:'Case-study-first, image grid, F-pattern meta, password protection for premium signal',
     tags:['case-study','image-grid','f-pattern','premium','protected-work'], awwwards_score:88 },
-  // RESTAURANT
   { id:'rest-nobu', site_type:'restaurant', name:'Nobu Restaurants', url:'https://noburestaurants.com',
     description:"Luxury restaurant group with full-bleed food photography, dark elegant palette, and reservation CTA always visible. Gestalt Law of Proximity groups location info.",
     design_notes:'Full-bleed food photography, dark elegant, sticky reservation CTA, location proximity grouping',
@@ -91,7 +83,6 @@ const BENCHMARKS = [
     description:'World top restaurant with photography-led storytelling, seasonal menu reveals, and nature-inspired palette. Navigation is hidden by default — experience over function.',
     design_notes:'Photography storytelling, seasonal reveals, nature palette, hidden nav, experience-first',
     tags:['storytelling','photography','nature','hidden-nav','seasonal'], awwwards_score:93 },
-  // BLOG
   { id:'blog-substack', site_type:'blog', name:'Substack Pattern', url:'https://substack.com',
     description:'Newsletter platform with clean reading-first design. High contrast text, generous line-height, single-column layout. Subscribe CTA repeats on scroll.',
     design_notes:'Reading-first, high-contrast text, generous line-height, repeated CTA, single column',
@@ -108,7 +99,6 @@ const BENCHMARKS = [
     description:'Long-form personal blog that proves personality > polish. Stick-figure illustrations, conversational tone, and extremely long-form articles keep readers engaged for hours.',
     design_notes:'Personality-first, stick illustrations, long-form, conversational, email subscription loop',
     tags:['personality','illustrations','long-form','conversational','email-loop'], awwwards_score:84 },
-  // AGENCY
   { id:'agency-fantasy', site_type:'agency', name:'Fantasy Interactive', url:'https://fantasy.co',
     description:'Digital product studio with bold full-viewport case studies and cinematic scroll. Work speaks first — homepage IS the portfolio.',
     design_notes:'Work-first layout, cinematic scroll, full-viewport cases, team-led, no logo wall',
@@ -122,10 +112,9 @@ const BENCHMARKS = [
     design_notes:'Humorous copy, broken grid, personality-driven, quirky illustrations, culture-first hiring',
     tags:['humorous','broken-grid','personality','quirky','culture-first'], awwwards_score:92 },
   { id:'agency-work-co', site_type:'agency', name:'Work & Co', url:'https://work.co',
-    description:'Digital product agency focused on utility. No flair for flair\'s sake — every design decision is justified by function. Client results lead the homepage.',
+    description:"Digital product agency focused on utility. No flair for flair's sake — every design decision is justified by function. Client results lead the homepage.",
     design_notes:'Result-first, clean utility, client logos, no decorative elements, functional-first',
     tags:['functional','result-first','client-logos','clean','utility'], awwwards_score:89 },
-  // OTHER
   { id:'other-linear-method', site_type:'other', name:'The Linear Method', url:'https://linear.app/method',
     description:'Long-form editorial on product development. Clean reading experience with strong hierarchy and pull-quotes. Perfect example of content-first design.',
     design_notes:'Long-form editorial, pull-quotes, clean reading, strong hierarchy, no distractions',
@@ -136,26 +125,21 @@ const BENCHMARKS = [
     tags:['webgl','motion','interactive','dark','technical'], awwwards_score:98 },
 ];
 
-// ── Main execution ────────────────────────────────────────────────────────────
 async function main() {
   console.log('🚀 Aura Pinecone + Supabase Benchmark Seeder\n');
 
-  // ── Init Supabase ──────────────────────────────────────────────────────────
   const supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY ?? process.env.SUPABASE_ANON_KEY
   );
 
-  // ── Init Gemini Embeddings ─────────────────────────────────────────────────
   const embedder = new GoogleGenerativeAIEmbeddings({
     apiKey: process.env.GEMINI_API_KEY,
     model: 'gemini-embedding-001',
   });
 
-  // ── Init Pinecone ──────────────────────────────────────────────────────────
   const pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
 
-  // Create index if it doesn't exist
   const existing = await pc.listIndexes();
   const indexNames = existing.indexes?.map(i => i.name) ?? [];
 
@@ -167,7 +151,6 @@ async function main() {
       metric: 'cosine',
       spec: { serverless: { cloud: 'aws', region: 'us-east-1' } },
     });
-    // Wait for index to be ready
     console.log('⏳ Waiting for index to initialize…');
     await new Promise(r => setTimeout(r, 15000));
   } else {
@@ -176,7 +159,6 @@ async function main() {
 
   const idx = pc.index(INDEX_NAME);
 
-  // ── Seed Supabase benchmark_sites ─────────────────────────────────────────
   console.log('\n📊 Seeding Supabase benchmark_sites table…');
   let dbCount = 0;
   for (const b of BENCHMARKS) {
@@ -202,7 +184,6 @@ async function main() {
   }
   console.log(`\n✅ Seeded ${dbCount}/${BENCHMARKS.length} records to Supabase`);
 
-  // ── Embed + upsert to Pinecone ────────────────────────────────────────────
   console.log('\n🧠 Generating embeddings and seeding Pinecone…');
   const vectors = [];
 
@@ -236,7 +217,6 @@ async function main() {
     }
   }
 
-  // Upsert in batches of 100
   console.log(`\n📤 Upserting ${vectors.length} vectors to Pinecone…`);
   const BATCH = 100;
   for (let i = 0; i < vectors.length; i += BATCH) {
@@ -245,7 +225,6 @@ async function main() {
     console.log(`  ✓ Upserted batch ${Math.floor(i / BATCH) + 1}`);
   }
 
-  // Verify
   await new Promise(r => setTimeout(r, 2000));
   const stats = await idx.describeIndexStats();
   console.log(`\n✅ Pinecone index stats:`, JSON.stringify(stats, null, 2));

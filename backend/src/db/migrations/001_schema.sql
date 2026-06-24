@@ -1,11 +1,5 @@
--- ============================================================
--- AURA DESIGN AI — Full Database Schema
--- Paste this entire file into Supabase → SQL Editor → Run
--- ============================================================
-
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- ── Users ────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS users (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name          VARCHAR(100) NOT NULL,
@@ -16,7 +10,6 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ── Chat Sessions ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS chat_sessions (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id         UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -35,7 +28,6 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id     ON chat_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_thread_id   ON chat_sessions(thread_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_last_active ON chat_sessions(last_active_at DESC);
 
--- ── Chat Messages ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS chat_messages (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id    UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
@@ -50,7 +42,6 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE INDEX IF NOT EXISTS idx_messages_session_id ON chat_messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_messages_thread_id  ON chat_messages(thread_id);
 
--- ── Scraped Pages ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS scraped_pages (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id      UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
@@ -68,8 +59,6 @@ CREATE TABLE IF NOT EXISTS scraped_pages (
   UNIQUE(session_id, page_key)
 );
 
--- ── Design Analyses ──────────────────────────────────────────
--- BUG FIX: added UNIQUE(session_id, page_key) so ON CONFLICT works correctly
 CREATE TABLE IF NOT EXISTS design_analyses (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id          UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
@@ -95,7 +84,6 @@ CREATE TABLE IF NOT EXISTS design_analyses (
 
 CREATE INDEX IF NOT EXISTS idx_analyses_session_id ON design_analyses(session_id);
 
--- ── Benchmark Sites ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS benchmark_sites (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name            VARCHAR(200) NOT NULL,
@@ -110,7 +98,6 @@ CREATE TABLE IF NOT EXISTS benchmark_sites (
 
 CREATE INDEX IF NOT EXISTS idx_benchmarks_site_type ON benchmark_sites(site_type);
 
--- ── Heatmap Summaries ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS heatmap_summaries (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   site_url              TEXT NOT NULL,
@@ -127,7 +114,6 @@ CREATE TABLE IF NOT EXISTS heatmap_summaries (
   UNIQUE(site_url, page_key)
 );
 
--- ── LangGraph Checkpoint Tables (do not modify) ──────────────
 CREATE TABLE IF NOT EXISTS checkpoints (
   thread_id               TEXT NOT NULL,
   checkpoint_ns           TEXT NOT NULL DEFAULT '',
@@ -161,7 +147,6 @@ CREATE TABLE IF NOT EXISTS checkpoint_writes (
   PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id, task_id, idx)
 );
 
--- ── Seed: Benchmark Sites ────────────────────────────────────
 INSERT INTO benchmark_sites (name, url, site_type, description, design_notes, tags) VALUES
 ('Stripe',  'https://stripe.com',  'saas',      'Payment infrastructure',    'Perfect visual hierarchy, F-pattern homepage, minimal cognitive load, strong CTA placement', ARRAY['minimal','conversion-focused','strong-hierarchy']),
 ('Linear',  'https://linear.app',  'saas',      'Project management tool',   'Dark theme mastery, Gestalt proximity in feature grid, tight typographic scale',            ARRAY['dark-theme','modern','developer-focused']),

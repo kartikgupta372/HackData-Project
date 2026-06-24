@@ -216,6 +216,8 @@ async function scrapeWebsite(rootUrl, options = {}) {
   const scrapePromise = (async () => {
     const browser = await puppeteer.launch({
       headless: 'new',
+      // In production (Railway/Docker), PUPPETEER_EXECUTABLE_PATH points to system Chromium
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -225,6 +227,7 @@ async function scrapeWebsite(rootUrl, options = {}) {
         '--no-zygote',
         '--disable-extensions',
         '--disable-background-networking',
+        '--single-process',  // needed in some container environments
       ],
     });
 

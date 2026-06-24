@@ -22,6 +22,10 @@ const path         = require('path');
 
 const app = express();
 
+// ── Trust proxy (Railway / Render / Heroku sit behind a reverse proxy) ────────
+// Without this, req.ip = '::ffff:127.0.0.1' and rate limiting breaks
+app.set('trust proxy', 1);
+
 // ── Security headers ──────────────────────────────────────────────────────────
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -32,6 +36,8 @@ app.use((req, res, next) => {
 });
 
 // ── CORS — supports comma-separated origins for multi-domain production ───────
+// Comma-separate multiple origins in FRONTEND_URL for multi-domain production
+// e.g. FRONTEND_URL=https://aura.vercel.app,https://www.auradesign.ai
 const ALLOWED_ORIGINS = (process.env.FRONTEND_URL ?? 'http://localhost:5174,http://localhost:5173')
   .split(',').map(s => s.trim());
 

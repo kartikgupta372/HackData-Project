@@ -1,9 +1,3 @@
-// src/agents/nodes.js
-// Bug 4 Fix: Agent graph is fully REMOVED from the chat flow.
-// Chat now uses direct persistent Gemini streaming in chat.routes.js.
-// This file is kept only as a reference/archive — it is NOT imported by any active route.
-// Bug 3 Fix: All garbled UTF-8 encoding replaced with proper characters.
-
 require('dotenv').config();
 
 const { ChatGroq } = require('@langchain/groq');
@@ -15,7 +9,6 @@ const heatmapTool = require('../tools/heatmap.tool');
 const recTool = require('../tools/recommendation.tool');
 const sse = require('../utils/sseRegistry');
 
-// ── Lazy LLM singleton ────────────────────────────────────────────────────────
 let _llm = null;
 function getLLM() {
   if (!_llm) {
@@ -30,12 +23,10 @@ function getLLM() {
   return _llm;
 }
 
-// ── Bug 3 Fix: sanitizeOutput strips code comments and garbage from any node response ──
 function sanitizeOutput(text) {
   if (!text || typeof text !== 'string') return '';
   let out = text.trim();
 
-  // Strip meta-prefix lines (AI leakage)
   const metaPrefixes = [
     /^As an (AI|LLM)[^.]*\.\s*/i,
     /^I am an (AI|language model)[^.]*\.\s*/i,
@@ -44,7 +35,6 @@ function sanitizeOutput(text) {
   ];
   for (const re of metaPrefixes) out = out.replace(re, '');
 
-  // Strip bare code-comment lines (not inside fenced blocks)
   const lines = out.split('\n');
   const cleaned = [];
   let inFence = false;
@@ -58,7 +48,6 @@ function sanitizeOutput(text) {
   return cleaned.join('\n').replace(/\n{3,}/g, '\n\n').trim() || text.trim();
 }
 
-// ── Utility: safe JSON parse from LLM output ─────────────────────────────────
 function safeParseJSON(text, fallback = {}) {
   try {
     const clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -66,7 +55,6 @@ function safeParseJSON(text, fallback = {}) {
   } catch { return fallback; }
 }
 
-// ── AGENT 1: Orchestrator ─────────────────────────────────────────────────────
 async function orchestratorNode(state) {
   const last = state.messages[state.messages.length - 1];
   const text = typeof last?.content === 'string' ? last.content : '';
@@ -78,11 +66,7 @@ async function orchestratorNode(state) {
 
   const result = await getLLM().invoke([
     new SystemMessage(
-      `You are a routing agent. Classify the user's message into exactly one intent:
-- "analyze_website"  — user wants to analyse a NEW URL for the first time
-- "general_chat"     — everything else: questions, code requests, comparisons, follow-ups
-
-Respond ONLY with JSON: { "intent": "<value>", "site_url": "<url or null>" }`
+      `You are a routing agent. Classify the user's message into exactly one intent:\n- "analyze_website"  — user wants to analyse a NEW URL for the first time\n- "general_chat"     — everything else: questions, code requests, comparisons, follow-ups\n\nRespond ONLY with JSON: { "intent": "<value>", "site_url": "<url or null>" }`
     ),
     new HumanMessage(text),
   ]);
@@ -98,7 +82,6 @@ Respond ONLY with JSON: { "intent": "<value>", "site_url": "<url or null>" }`
   };
 }
 
-// ── AGENT 2: DOM Intake ───────────────────────────────────────────────────────
 async function domIntakeNode(state) {
   const threadId = state.thread_id;
   const last = state.messages[state.messages.length - 1];
@@ -162,7 +145,6 @@ async function domIntakeNode(state) {
   }
 }
 
-// ── AGENT 3: Design Preference Collector ─────────────────────────────────────
 async function designPreferenceNode(state) {
   if (state.design_prefs_collected) return { next_node: 'benchmark_rag' };
   const last = state.messages[state.messages.length - 1];
@@ -171,11 +153,7 @@ async function designPreferenceNode(state) {
   const text = typeof last.content === 'string' ? last.content : '';
   const result = await getLLM().invoke([
     new SystemMessage(
-      `Extract design preferences. Respond ONLY with JSON:
-{ "style": "dark-modern|minimal|bold|corporate|playful|luxury|other",
-  "priority": "conversions|aesthetics|mobile-ux|accessibility|all",
-  "priorityLaws": ["fitts","hicks","gestalt","fpattern","hierarchy","typography","contrast"],
-  "specificRequests": "string or null" }`
+      `Extract design preferences. Respond ONLY with JSON:\n{ "style": "dark-modern|minimal|bold|corporate|playful|luxury|other",\n  "priority": "conversions|aesthetics|mobile-ux|accessibility|all",\n  "priorityLaws": ["fitts","hicks","gestalt","fpattern","hierarchy","typography","contrast"],\n  "specificRequests": "string or null" }`
     ),
     new HumanMessage(text),
   ]);
@@ -197,7 +175,6 @@ async function designPreferenceNode(state) {
   };
 }
 
-// ── AGENT 4: Benchmark RAG ────────────────────────────────────────────────────
 async function benchmarkRagNode(state) {
   const threadId = state.thread_id;
   sse.emit(threadId, 'stage', { stage: 'fetching_benchmarks', message: 'Finding benchmark sites...', progress: 35 });
@@ -214,7 +191,6 @@ async function benchmarkRagNode(state) {
   }
 }
 
-// ── AGENT 5: Heatmap Analyzer ─────────────────────────────────────────────────
 async function heatmapAnalyzerNode(state) {
   const threadId = state.thread_id;
   const pageKeys = Object.keys(state.scraped_pages ?? {});
@@ -259,7 +235,6 @@ async function heatmapAnalyzerNode(state) {
   return { heatmap_data: heatmapData, heatmap_context: heatmapContext };
 }
 
-// ── AGENT 6: Per-Page Analyzer ────────────────────────────────────────────────
 async function pageAnalyzerNode(state) {
   const threadId = state.thread_id;
   const pages = state.pages_to_analyze ?? [];
@@ -321,7 +296,6 @@ async function pageAnalyzerNode(state) {
   };
 }
 
-// ── AGENT 7: Code Enhancer ────────────────────────────────────────────────────
 async function codeEnhancerNode(state) {
   const threadId = state.thread_id;
   const pages = Object.keys(state.scraped_pages ?? {});
@@ -362,9 +336,6 @@ async function codeEnhancerNode(state) {
   };
 }
 
-// ── AGENT 8: General Chat ─────────────────────────────────────────────────────
-// Bug 3 Fix: sanitizeOutput() applied to all responses before they reach the user.
-// Bug 4 Fix: This node is NOT called by any active route. Chat uses chat.routes.js directly.
 async function generalChatNode(state) {
   const threadId = state.thread_id;
   const last = state.messages[state.messages.length - 1];
@@ -396,7 +367,6 @@ async function generalChatNode(state) {
     ctx.push(`HEATMAP DATA:\n${hmLines}`);
   }
 
-  // Bug 3 Fix: system prompt uses clean characters only — no emoji, no encoded chars
   const systemPrompt = `You are Aura AI — a full-stack UI/UX design expert and frontend engineer.
 
 == OUTPUT FORMAT (STRICT) ==
@@ -431,13 +401,11 @@ Be conversational, specific, and reference actual DOM elements. Format with mark
     sse.emit(threadId, 'token', { token });
   }
 
-  // Bug 3 Fix: sanitize before storing/emitting
   const clean = sanitizeOutput(full);
 
   return { messages: [new AIMessage(clean)], current_stage: 'idle' };
 }
 
-// ── Prompt builders ───────────────────────────────────────────────────────────
 function buildPageAnalysisPrompt({ pageKey, pageData, state }) {
   return `PAGE: ${pageKey} (${pageData.page_type ?? 'unknown'})
 URL: ${pageData.page_url}

@@ -26,7 +26,9 @@ const authLimiter = rateLimit({
 const COOKIE_OPTS = {
   httpOnly: true,
   secure:   process.env.NODE_ENV === 'production',
-  sameSite: 'lax',
+  // 'none' required for cross-domain cookies (Vercel frontend <-> Railway backend)
+  // 'lax' works for local dev (same origin via Vite proxy)
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
   maxAge:   7 * 24 * 60 * 60 * 1000,
 };
 
@@ -159,7 +161,11 @@ router.get('/me', authMiddleware, (req, res) => {
 
 // ── POST /auth/logout ─────────────────────────────────────────────────────────
 router.post('/logout', (req, res) => {
-  res.clearCookie('aura_token', { httpOnly: true, sameSite: 'lax' });
+  res.clearCookie('aura_token', {
+    httpOnly: true,
+    secure:   process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  });
   res.json({ success: true });
 });
 
