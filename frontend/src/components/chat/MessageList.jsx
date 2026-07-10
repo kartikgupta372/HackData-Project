@@ -11,7 +11,6 @@ export default function MessageList({ onRetry }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamingContent])
 
-  // Find the last user message content for retry
   const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
 
   return (
@@ -33,7 +32,7 @@ export default function MessageList({ onRetry }) {
           ))}
         </AnimatePresence>
 
-        {/* Streaming bubble */}
+        {}
         {isStreaming && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}

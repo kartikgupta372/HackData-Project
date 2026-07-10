@@ -32,7 +32,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-aura-void flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Ambient */}
+      {}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-aura-accent/[0.04] rounded-full blur-3xl" />
       </div>

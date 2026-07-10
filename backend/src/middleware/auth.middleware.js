@@ -1,6 +1,3 @@
-// src/middleware/auth.middleware.js
-// Reads aura_token from HttpOnly cookie OR Authorization: Bearer header
-
 const jwt     = require('jsonwebtoken');
 const { supabase } = require('../db/pool');
 

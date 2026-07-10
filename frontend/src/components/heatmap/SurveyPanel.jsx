@@ -7,7 +7,7 @@ import Button from '../ui/Button'
 
 export default function SurveyPanel({ siteUrl, pageKey, onClose }) {
   const { user } = useAuthStore()
-  const [phase, setPhase] = useState('intro') // intro | tracking | done
+  const [phase, setPhase] = useState('intro')
   const [countdown, setCountdown] = useState(30)
   const [events, setEvents] = useState([])
   const [submitted, setSubmitted] = useState(false)
@@ -21,7 +21,6 @@ export default function SurveyPanel({ siteUrl, pageKey, onClose }) {
     setCountdown(30)
   }
 
-  // Countdown timer
   useEffect(() => {
     if (phase !== 'tracking') return
     const timer = setInterval(() => {
@@ -33,7 +32,6 @@ export default function SurveyPanel({ siteUrl, pageKey, onClose }) {
     return () => clearInterval(timer)
   }, [phase])
 
-  // Mouse tracking as gaze proxy
   const handleMouseMove = (e) => {
     if (phase !== 'tracking') return
     const rect = e.currentTarget.getBoundingClientRect()
@@ -70,7 +68,7 @@ export default function SurveyPanel({ siteUrl, pageKey, onClose }) {
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 bg-aura-void/90 backdrop-blur-sm flex flex-col"
     >
-      {/* Top bar */}
+      {}
       <div className="flex items-center justify-between px-6 py-4 border-b border-aura-line bg-aura-surface/80">
         <div className="flex items-center gap-3">
           <Eye className="w-4 h-4 text-aura-accent" />

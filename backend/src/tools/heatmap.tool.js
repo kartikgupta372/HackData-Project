@@ -1,4 +1,3 @@
-// src/tools/heatmap.tool.js
 require('dotenv').config();
 
 const { v4: uuidv4 } = require('uuid');
@@ -160,6 +159,3 @@ async function saveGazeSession(sessionData) {
 }
 
 module.exports = { aggregateHeatmap, predictHeatmap, getHeatmap, saveGazeSession };
-
-
-

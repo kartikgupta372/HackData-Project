@@ -1,5 +1,3 @@
-// src/middleware/upload.middleware.js
-// Multer config for onboarding document uploads (brand assets, guidelines, screenshots)
 const multer = require('multer');
 const path   = require('path');
 const fs     = require('fs');
@@ -11,7 +9,7 @@ const ALLOWED_TYPES = [
   'image/jpeg', 'image/png', 'image/webp', 'image/gif',
   'application/pdf',
   'text/plain',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];
 
 const storage = multer.diskStorage({
@@ -31,7 +29,7 @@ const fileFilter = (_req, file, cb) => {
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024, files: 5 }, // 10MB per file, max 5 files
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 },
 });
 
 module.exports = upload;

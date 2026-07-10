@@ -1,6 +1,3 @@
-// src/graph/auraGraph.js
-// BUG 4 FIX: This graph is fully DISABLED. Chat uses direct Gemini streaming in chat.routes.js.
-// File kept as reference only — streamGraph/getGraph throw if accidentally called.
 require('dotenv').config();
 
 const { StateGraph, END, START, MemorySaver } = require('@langchain/langgraph');
@@ -16,8 +13,6 @@ const {
   codeEnhancerNode,
   generalChatNode,
 } = require('../agents/nodes');
-
-// ── Routing functions ─────────────────────────────────────────────────────────
 
 function routeFromOrchestrator(state) {
   const valid = ['dom_intake', 'code_enhancer', 'heatmap_analyzer', 'page_analyzer', 'general_chat', 'design_preference'];
@@ -38,12 +33,7 @@ function routeFromPageAnalyzer(state) {
   return state.next_node === 'code_enhancer' ? 'code_enhancer' : END;
 }
 
-// ── Build & compile ───────────────────────────────────────────────────────────
-
 async function buildAuraGraph() {
-  // MemorySaver: in-process checkpointing — no direct pg connection needed.
-  // Conversations persist within the server session.
-  // Swap for PostgresSaver when a direct pg connection is available in prod.
   const checkpointer = new MemorySaver();
   console.log('✅ LangGraph checkpointer ready (MemorySaver)');
 
@@ -95,14 +85,11 @@ async function buildAuraGraph() {
   return compiled;
 }
 
-// ── Singleton ─────────────────────────────────────────────────────────────────
 let _graph = null;
 async function getGraph() {
   if (!_graph) _graph = await buildAuraGraph();
   return _graph;
 }
-
-// ── Stream execution ──────────────────────────────────────────────────────────
 
 async function streamGraph(threadId, inputState, resWriter) {
   sse.setWriter(threadId, resWriter);

@@ -36,7 +36,6 @@ const TextRevealByWord: FC<TextRevealByWordProps> = ({
           }
         >
           {words.map((word, i) => {
-            // Compress reveal to first 50% of scroll so text finishes fast
             const start = (i / words.length) * 0.5;
             const end = start + (1 / words.length) * 0.5;
             return (

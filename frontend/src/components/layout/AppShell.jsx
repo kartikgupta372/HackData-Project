@@ -27,7 +27,7 @@ export default function AppShell() {
 
   return (
     <div className="flex h-screen bg-aura-void overflow-hidden">
-      {/* Ambient background */}
+      {}
       <div className="fixed inset-0 pointer-events-none z-0">
         <div className="absolute top-0 left-64 w-96 h-96 bg-aura-accent/[0.03] rounded-full blur-3xl" />
         <div className="absolute bottom-0 right-0 w-80 h-80 bg-aura-accent/[0.02] rounded-full blur-3xl" />

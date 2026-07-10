@@ -1,5 +1,3 @@
-// src/pages/SurveyPage.jsx
-// Public page — survey participants click on screenshot to record attention
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -13,7 +11,7 @@ export default function SurveyPage() {
   const [survey, setSurvey]       = useState(null)
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState('')
-  const [clicks, setClicks]       = useState([])  // [{x_pct, y_pct, timestamp_ms, click_order}]
+  const [clicks, setClicks]       = useState([])
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')

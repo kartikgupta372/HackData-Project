@@ -10,17 +10,17 @@ import { MarqueeAnimation } from "@/landing-components/ui/Textcrousel";
 export function AboutUsSection() {
   return (
     <section id="about" className="w-full bg-black relative overflow-hidden" data-theme="dark">
-      {/* Sparkles "About Us" heading */}
+      {}
       
       <div className="py-20 mt-7 space-y-0 relative">
-        {/* Top Strip - Orange */}
+        {}
         <div className="bg-[#f73100ff] py-5 relative z-10 overflow-hidden border-b border-zinc-800 mb-3">
           <MarqueeAnimation baseVelocity={-1} className="text-white text-4xl font-bold tracking-tighter">
             AURA DESIGN AI • FUTURE OF DESIGN • AI POWERED CREATIVITY • 
           </MarqueeAnimation>
         </div>
         
-        {/* Bottom Strip - Charcoal/Dark */}
+        {}
         <div className="bg-white py-5 relative z-10 overflow-hidden border-b border-zinc-800">
           <MarqueeAnimation baseVelocity={1} className="text-black text-4xl font-bold tracking-tight">
             INNOVATION • PERFORMANCE • AESTHETICS • BEYOND IMAGINATION •
@@ -32,7 +32,7 @@ export function AboutUsSection() {
           About Us
         </h2>
         <div className="w-[40rem] h-20 relative">
-          {/* Gradients */}
+          {}
           <div className="absolute inset-x-20 top-0 bg-gradient-to-r from-transparent via-[#f04107ff] to-transparent h-[2px] w-3/4 blur-sm" />
           <div className="absolute inset-x-20 top-0 bg-gradient-to-r from-transparent via-[#f04107ff] to-transparent h-px w-3/4" />
           <div className="absolute inset-x-60 top-0 bg-gradient-to-r from-transparent via-orange-500 to-transparent h-[5px] w-1/4 blur-sm" />
@@ -42,12 +42,12 @@ export function AboutUsSection() {
             background="transparent"
             minSize={0.4}
             maxSize={1}
-            particleDensity={200} // Further reduced particle density
+            particleDensity={200}
             className="w-full h-full"
             particleColor="#fff8f6ff"
           />
 
-          {/* Radial fade mask */}
+          {}
           <div className="absolute inset-0 w-full h-full bg-black [mask-image:radial-gradient(350px_200px_at_top,transparent_20%,white)]"></div>
         </div>
       </div>
@@ -73,13 +73,10 @@ export function AboutUsSection() {
             </CardSpotlight>
           </div>
 
-          {/* Middle Column - Robot (Wider) */}
+          {}
           <div className="lg:col-span-2 order-1 lg:order-2">
             <Card className="w-full h-[600px] bg-black/[0.96] relative overflow-hidden border-zinc-800">
-              {/* <Spotlight
-                className="-top-10 left-0 md:left-60 md:-top-20"
-                fill="#f56421ff"
-              /> */}
+              {}
               <div className="w-full h-full">
                 <SplineScene
                   scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"

@@ -30,7 +30,6 @@ export default function HeatmapView() {
   const [activeView, setActiveView] = useState('surveys')
   const [siteUrl, setSiteUrl] = useState(onboardingData?.url || '')
   const [inputUrl, setInputUrl] = useState(onboardingData?.url || '')
-  // Bug 9 fix: IST-aware today filter, defaults on
   const [todayOnly, setTodayOnly] = useState(true)
   const [selectedSurvey, setSelectedSurvey] = useState(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -86,7 +85,7 @@ export default function HeatmapView() {
 
   return (
     <div className="flex h-full bg-aura-void overflow-hidden">
-      {/* Left panel */}
+      {}
       <div className="w-64 border-r border-aura-line bg-aura-surface flex flex-col shrink-0">
         <div className="p-4 border-b border-aura-line">
           <div className="flex items-center gap-2 mb-1">
@@ -96,7 +95,7 @@ export default function HeatmapView() {
           <p className="text-xs text-aura-muted leading-relaxed">Screenshot surveys, click heatmaps, shareable links</p>
         </div>
 
-        {/* URL filter */}
+        {}
         <div className="p-3 border-b border-aura-line">
           <div className="flex gap-1.5">
             <input value={inputUrl} onChange={e => setInputUrl(e.target.value)}
@@ -425,14 +424,13 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
   const handleScreenshot = async () => {
     if (!url.trim()) { setError('URL required'); return }
     const cleanUrl = normaliseUrl(url)
-    setUrl(cleanUrl)  // update the input to show normalised URL
+    setUrl(cleanUrl)
     setLoading(true); setError('')
     try {
       const res = await heatmapApi.screenshot({ url: cleanUrl, pageKey })
       setScreenshotData(res.data.data)
       setStep('confirm')
     } catch (err) {
-      // Screenshot failed — allow user to proceed without one
       setError((err.response?.data?.error || 'Screenshot failed') + ' — you can still create the survey without a screenshot.')
       setScreenshotData({ screenshot_url: null, element_count: 0, full_page_captured: false })
       setStep('confirm')

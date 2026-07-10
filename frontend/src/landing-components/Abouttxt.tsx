@@ -7,7 +7,7 @@ import { TextRevealByWord } from "@/landing-components/textreveal"
 export function AboutSection() {
   return (
     <div data-theme="dark" className="relative w-full bg-black">
-      {/* Dot pattern background across the entire section */}
+      {}
       <DotPattern
         glow={true}
         width={24}
@@ -16,7 +16,7 @@ export function AboutSection() {
         className={cn("text-white/30")}
       />
 
-      {/* Text Reveal scroll effect */}
+      {}
       <TextRevealByWord
         text="AuraDesign AI transforms your website into a high-converting masterpiece with the power of artificial intelligence. Design smarter, convert faster."
       />

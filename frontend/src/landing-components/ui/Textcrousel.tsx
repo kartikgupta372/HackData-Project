@@ -44,7 +44,7 @@ const MarqueeAnimation = memo(({
 
   const directionFactor = useRef<number>(1);
   useAnimationFrame((t, delta) => {
-    if (!isInView) return; // Stop animation when not visible
+    if (!isInView) return;
 
     let moveBy = directionFactor.current * baseVelocity * (delta / 1000);
 

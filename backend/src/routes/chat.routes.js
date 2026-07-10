@@ -1,5 +1,3 @@
-// src/routes/chat.routes.js
-// Direct Groq streaming chat
 require('dotenv').config();
 const express    = require('express');
 const rateLimit  = require('express-rate-limit');
@@ -23,7 +21,6 @@ const chatLimiter = rateLimit({
 
 const activeRequestKeys = new Set();
 
-// ── Groq client ──────────────────────────────────────────────────────────────
 let _groq = null;
 function getGroq() {
   if (_groq) return _groq;
@@ -35,12 +32,10 @@ function getGroq() {
   } catch { return null; }
 }
 
-// ── Groq streaming helper — streams tokens via emit, returns full response ────
 async function streamWithGroq(systemPrompt, chatHistory, userMessage, emit) {
   const groq = getGroq();
   if (!groq) throw new Error('GROQ_API_KEY not set — add it to .env');
 
-  // Convert history format → OpenAI format
   const messages = [
     { role: 'system', content: systemPrompt },
     ...chatHistory.map(m => ({ role: m.role === 'model' || m.role === 'assistant' ? 'assistant' : m.role, content: m.content || m.parts?.[0]?.text || '' })),
@@ -62,7 +57,6 @@ async function streamWithGroq(systemPrompt, chatHistory, userMessage, emit) {
   return full;
 }
 
-// ── Data loaders ─────────────────────────────────────────────────────────────
 async function loadOnboardingData(userId) {
   try {
     const { data } = await supabase.from('users').select('onboarding_data').eq('id', userId).single();
@@ -80,8 +74,6 @@ async function loadScrapedPages(sessionId) {
   } catch { return []; }
 }
 
-// Load heatmap/survey context — read-only bridge from heatmap system into chat
-// Priority: bundle (from "Send to Chat") → summaries for the site URL
 async function loadHeatmapContext(siteUrl, bundleId) {
   try {
     if (bundleId) {
@@ -101,7 +93,6 @@ async function loadHeatmapContext(siteUrl, bundleId) {
   } catch { return null; }
 }
 
-// ── Sanitize DOM summaries before injecting into prompt ──────────────────────
 function sanitizeDomSummary(summary) {
   if (!summary) return '';
   return summary
@@ -112,12 +103,10 @@ function sanitizeDomSummary(summary) {
     .trim();
 }
 
-// ── Clean model output: remove code comments, internal state, garbage text ───
 function sanitizeChatResponse(text) {
   if (!text || typeof text !== 'string') return '';
   let out = text.trim();
 
-  // Strip meta-prefixes that leak from model internals
   const metaPrefixes = [
     /^As an (AI|LLM)[^.]*\.\s*/i,
     /^I am an (AI|language model)[^.]*\.\s*/i,
@@ -128,7 +117,6 @@ function sanitizeChatResponse(text) {
   ];
   for (const re of metaPrefixes) out = out.replace(re, '');
 
-  // Strip bare code-comment lines (keep lines inside fenced blocks)
   const lines = out.split('\n');
   const cleaned = [];
   let inFence = false;
@@ -143,7 +131,6 @@ function sanitizeChatResponse(text) {
   return cleaned.join('\n').replace(/\n{3,}/g, '\n\n').trim() || text.trim();
 }
 
-// ── Label maps ───────────────────────────────────────────────────────────────
 const DOMAIN_LABELS = {
   ecommerce:'E-Commerce', saas:'SaaS / App', portfolio:'Portfolio',
   restaurant:'Restaurant / Food', healthcare:'Healthcare', blog:'Blog / Content',
@@ -155,7 +142,6 @@ const INTENT_LABELS = {
   mobile_ux:'Better mobile experience', seo_design:'SEO-friendly structure', full_audit:'Full design audit',
 };
 
-// ── Build system prompt — includes onboarding, scraped pages, heatmap, style, docs ──
 function buildSystemPrompt(onboarding, scrapedPages, siteUrl, sessionFormData, heatmapContext = null) {
   const rawDomain   = sessionFormData?.domain     || onboarding?.domain     || '';
   const rawIntent   = sessionFormData?.intent     || onboarding?.intent     || '';
@@ -236,7 +222,6 @@ Be direct, specific, and helpful. Reference actual elements from the page when a
   return ctx;
 }
 
-// ── POST /chat/sessions ──────────────────────────────────────────────────────
 router.post('/sessions', authMiddleware, async (req, res) => {
   const { siteUrl: rawSiteUrl, domain, intent, other_info } = req.body ?? {};
   const siteUrl = rawSiteUrl ? validatePublicUrl(rawSiteUrl) : null;
@@ -299,7 +284,6 @@ router.get('/sessions/:sessionId/results', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ success:false, error:err.message }); }
 });
 
-// ── POST /chat/message — DIRECT GEMINI STREAMING ────────────────────────────
 router.post('/message', authMiddleware, chatLimiter, async (req, res) => {
   const { thread_id, session_id, message } = req.body;
   if (!thread_id || !session_id || !message?.trim()) {
@@ -329,16 +313,13 @@ router.post('/message', authMiddleware, chatLimiter, async (req, res) => {
   const emit = (event, data) => { if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
 
   try {
-    // 1. Save user message
     await chatMemory.saveMessage(thread_id, session_id, 'user', message);
     emit('user_message', { content: message });
 
-    // 2. Extract form data early so we can resolve siteUrl + heatmap bundle id
     const sessionFormData = typeof session.design_prefs === 'string'
       ? JSON.parse(session.design_prefs || '{}')
       : (session.design_prefs || {});
 
-    // 3. Load all context in parallel
     const [onboarding, scrapedPages, history] = await Promise.all([
       loadOnboardingData(req.user.id),
       loadScrapedPages(session_id),
@@ -346,7 +327,6 @@ router.post('/message', authMiddleware, chatLimiter, async (req, res) => {
         .then(r => r.rows).catch(() => []),
     ]);
 
-    // Resolve siteUrl BEFORE heatmap lookup (session.site_url can be null on first msg)
     const siteUrl = session.site_url || onboarding?.url || null;
     const heatmapContext = await loadHeatmapContext(siteUrl, sessionFormData?.heatmap_bundle_id ?? null);
 
@@ -356,10 +336,8 @@ router.post('/message', authMiddleware, chatLimiter, async (req, res) => {
       emit('stage', { stage:'analysing', message:`Analysing ${scrapedPages.length} scraped pages...`, progress:20 });
     }
 
-    // 4. Build system prompt with ALL context (onboarding + scrape + heatmap + style + docs)
     const systemPrompt = buildSystemPrompt(onboarding, scrapedPages, siteUrl, sessionFormData, heatmapContext);
 
-    // 5. Build chat history (exclude the current user message — sent separately)
     const historyForContext = history.length > 0 && history[history.length - 1].role === 'user'
       ? history.slice(0, -1) : history;
     const chatHistory = historyForContext.map(msg => ({
@@ -369,10 +347,8 @@ router.post('/message', authMiddleware, chatLimiter, async (req, res) => {
 
     emit('stage', { stage:'generating', message:'Generating response...', progress:40 });
 
-    // 6. Stream using Groq
     const fullResponse = await streamWithGroq(systemPrompt, chatHistory, message, emit);
 
-    // 7. Sanitize (strip code comments, meta-text, garbage) then save
     const cleanResponse = sanitizeChatResponse(fullResponse);
     await chatMemory.saveMessage(thread_id, session_id, 'assistant', cleanResponse);
     await chatMemory.updateSessionStage(session_id, 'idle', siteUrl, onboarding?.domain ?? null);

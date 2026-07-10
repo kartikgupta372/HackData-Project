@@ -25,7 +25,6 @@ export default function Sidebar() {
     refetchInterval: 30000,
   })
 
-  // Refresh sidebar whenever ChatView creates or updates a session
   useEffect(() => {
     const refresh = () => qc.invalidateQueries({ queryKey: ['sessions'] })
     window.addEventListener('aura:session-created', refresh)
@@ -38,10 +37,8 @@ export default function Sidebar() {
   const sessions = sessionsData ?? []
 
   const handleNewChat = () => {
-    // Clear current session so ChatView shows the URL prompt modal
     useChatStore.getState().clearSession()
     setActiveFeature('chat')
-    // Tell ChatView to open the URL modal for a fresh session
     window.dispatchEvent(new CustomEvent('aura:request-new-session'))
   }
 
@@ -83,7 +80,7 @@ export default function Sidebar() {
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       className="h-screen bg-aura-surface border-r border-aura-line flex flex-col shrink-0 relative z-20 overflow-hidden"
     >
-      {/* Logo */}
+      {}
       <div className={clsx('flex items-center h-14 px-4 border-b border-aura-line shrink-0', sidebarCollapsed && 'justify-center px-0')}>
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-7 h-7 rounded-md bg-aura-accent/20 border border-aura-accent/30 flex items-center justify-center shrink-0">
@@ -225,4 +222,3 @@ function SidebarButton({ icon, label, collapsed, onClick }) {
     </button>
   )
 }
-

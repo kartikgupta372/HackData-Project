@@ -1,7 +1,5 @@
 import api from './axios'
 
-// In dev (Vite proxy): '' (relative) — requests go through Vite to backend
-// In prod: VITE_API_URL
 const BASE = import.meta.env.VITE_API_URL || ''
 
 export const chatApi = {
@@ -16,8 +14,6 @@ export const chatApi = {
   getResults:     (sessionId) => api.get(`/chat/sessions/${sessionId}/results`),
   getState:       (threadId)  => api.get(`/chat/sessions/${threadId}/state`),
 
-  // SSE uses native fetch because axios doesn't support streaming
-  // Must match the Vite proxy routes
   streamMessage: async (payload, handlers) => {
     const { onStage, onToken, onMessage, onDone, onError, onUserMessage } = handlers
 
@@ -50,7 +46,7 @@ export const chatApi = {
 
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
-      buffer = lines.pop()   // keep incomplete last line
+      buffer = lines.pop()
 
       let eventType = null
       for (const line of lines) {
@@ -67,9 +63,8 @@ export const chatApi = {
               case 'assistant_message': onMessage?.(data);            break
               case 'done':              onDone?.(data);               break
               case 'error':             onError?.(data.error, { retryable: data.retryable ?? false }); break
-              // ignore :heartbeat comments
             }
-          } catch { /* malformed JSON — skip */ }
+          } catch {  }
           eventType = null
         }
       }

@@ -1,5 +1,3 @@
-// src/routes/insights.routes.js
-// Insight Engine: auto-generates UX insight cards from heatmap + scraped page data
 require('dotenv').config();
 
 const express = require('express');
@@ -7,10 +5,8 @@ const router  = express.Router();
 const { authMiddleware } = require('../middleware/auth.middleware');
 const { supabase }       = require('../db/pool');
 const pool               = require('../db/pool');
-// LangChain removed — using plain {role,content} objects with groq-sdk directly
 const { validatePublicUrl } = require('../utils/validateUrl');
 
-// ── LLM helper: Groq via groq-sdk (free 14,400 req/day) ──────────────────────
 let _groqClient = null;
 function getGroqClient() {
   if (!_groqClient) {
@@ -50,9 +46,6 @@ const INSIGHT_TYPES = [
   'misaligned_nav', 'low_attention', 'accessibility', 'mobile_ux', 'general',
 ];
 
-// ── POST /insights/generate ──────────────────────────────────────────────────
-// Generate insight cards for a site from heatmap summaries + scraped pages.
-// Called automatically after heatmap compute, or manually by user.
 router.post('/generate', authMiddleware, async (req, res) => {
   const { siteUrl, sessionId } = req.body;
   if (!siteUrl) return res.status(400).json({ success: false, error: 'siteUrl required' });
@@ -60,14 +53,12 @@ router.post('/generate', authMiddleware, async (req, res) => {
   if (!cleanUrl) return res.status(400).json({ success: false, error: 'Invalid URL' });
 
   try {
-    // Gather heatmap summaries for this site
     const { rows: hmRows } = await pool.query(
       `SELECT page_key, summary_text, above_fold_pct, confidence_level, session_count, hot_zones
          FROM heatmap_summaries WHERE site_url = $1 ORDER BY last_updated DESC LIMIT 10`,
       [cleanUrl]
     );
 
-    // Gather scraped page summaries
     let scrapedContext = '';
     if (sessionId) {
       const { rows: pages } = await pool.query(
@@ -118,7 +109,6 @@ Return ONLY a JSON array — no markdown, no preamble.` },
       return res.status(500).json({ success: false, error: 'AI failed to generate insights — try again' });
     }
 
-    // Save to DB
     const toInsert = insights.map(ins => ({
       user_id:        req.user.id,
       site_url:       cleanUrl,
@@ -144,7 +134,6 @@ Return ONLY a JSON array — no markdown, no preamble.` },
   }
 });
 
-// ── GET /insights ────────────────────────────────────────────────────────────
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const { siteUrl, status, severity } = req.query;
@@ -159,7 +148,6 @@ router.get('/', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// ── PATCH /insights/:id/status ───────────────────────────────────────────────
 router.patch('/:id/status', authMiddleware, async (req, res) => {
   const { status } = req.body;
   const VALID = ['new', 'reviewed', 'actioned', 'dismissed'];
@@ -172,8 +160,6 @@ router.patch('/:id/status', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// ── POST /insights/:id/send-to-chat ─────────────────────────────────────────
-// Opens a focused chat session to discuss a specific insight
 router.post('/:id/send-to-chat', authMiddleware, async (req, res) => {
   try {
     const { data: insight, error } = await supabase.from('insight_cards')

@@ -1,4 +1,3 @@
-﻿// src/routes/onboarding.routes.js — Fixed: URL validation (SSRF), background heatmap
 const express  = require('express');
 const path     = require('path');
 const router   = express.Router();
@@ -9,12 +8,10 @@ const heatmapTool  = require('../tools/heatmap.tool');
 const upload       = require('../middleware/upload.middleware');
 const { validatePublicUrl } = require('../utils/validateUrl');
 
-// ── POST /onboarding/submit ───────────────────────────────────────────────────
 router.post('/submit', authMiddleware, async (req, res) => {
   const { intent, url, domain, style_preference, other_info, document_urls, run_heatmap } = req.body;
   if (!domain) return res.status(400).json({ success: false, error: 'domain is required' });
 
-  // FIX: validate URL before using it (SSRF protection)
   let cleanUrl = null;
   if (url?.trim()) {
     cleanUrl = validatePublicUrl(url.trim());
@@ -35,7 +32,6 @@ router.post('/submit', authMiddleware, async (req, res) => {
       .eq('id', req.user.id);
     if (error) throw new Error(error.message);
 
-    // Respond immediately — heatmap runs in background
     res.json({ success: true, data: { onboarding_data: onboardingData, heatmap: 'queued' } });
 
     if (run_heatmap && cleanUrl) {
@@ -56,9 +52,6 @@ router.post('/submit', authMiddleware, async (req, res) => {
   }
 });
 
-// ── POST /onboarding/upload-documents ────────────────────────────────────────
-// Accepts brand assets, guidelines, screenshots (max 5 files, 10MB each)
-// Returns array of accessible URLs to be stored with onboarding_data
 router.post('/upload-documents', authMiddleware,
   (req, res, next) => {
     upload.array('documents', 5)(req, res, (err) => {
@@ -79,7 +72,6 @@ router.post('/upload-documents', authMiddleware,
   }
 );
 
-// ── GET /onboarding/status ────────────────────────────────────────────────────
 router.get('/status', authMiddleware, async (req, res) => {
   try {
     const { data: user, error } = await supabase

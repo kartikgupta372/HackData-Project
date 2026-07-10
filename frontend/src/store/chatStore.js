@@ -2,12 +2,12 @@ import { create } from 'zustand'
 
 export const useChatStore = create((set, get) => ({
   sessions: [],
-  activeSessionId: null,     // session.id from DB
-  activeThreadId: null,      // session.thread_id for chat
-  messages: [],              // { id, role, content, type, timestamp }
+  activeSessionId: null,
+  activeThreadId: null,
+  messages: [],
   isStreaming: false,
-  streamingContent: '',      // accumulates token chunks
-  currentStage: null,        // { stage, message, progress, current_page }
+  streamingContent: '',
+  currentStage: null,
   analysisResults: null,
 
   setSessions: (sessions) => set({ sessions }),
@@ -29,7 +29,6 @@ export const useChatStore = create((set, get) => ({
 
   appendToken: (token) => set(s => ({ streamingContent: s.streamingContent + token })),
 
-  // optionalFinalContent: when provided (e.g. from server's sanitized assistant_message), use it instead of accumulated streamingContent
   finishStreaming: (optionalFinalContent) => {
     const { streamingContent, messages } = get()
     const content = (optionalFinalContent != null && String(optionalFinalContent).trim())

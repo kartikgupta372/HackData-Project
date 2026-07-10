@@ -48,8 +48,6 @@ const GlowingEffect = memo(
 
           const { left, top, width, height, bottom, right } = element.getBoundingClientRect();
           
-          // Performance Optimization: 
-          // If the card is completely off-screen, skip all calculations
           if (bottom < 0 || top > window.innerHeight || right < 0 || left > window.innerWidth) {
             return;
           }
@@ -111,8 +109,6 @@ const GlowingEffect = memo(
       const handleScroll = () => handleMove();
       const handlePointerMove = (e: PointerEvent) => handleMove(e);
 
-      // We need global listeners for proximity (detecting mouse before it enters card)
-      // and for scroll (relative position change)
       window.addEventListener("scroll", handleScroll, { passive: true });
       document.body.addEventListener("pointermove", handlePointerMove, {
         passive: true,
@@ -205,12 +201,10 @@ export function FeaturesSection() {
     offset: ["start start", "end end"],
   });
 
-  // Big Text Animation: Scales down staying centered, then fades out before cards appear
   const scale = useTransform(scrollYProgress, [0, 0.4], [4, 1]);
   const opacity = useTransform(scrollYProgress, [0, 0.1, 0.4, 0.5], [0, 1, 1, 0]);
   const textBlur = useTransform(scrollYProgress, [0, 0.2], ["10px", "0px"]);
   
-  // Grid Animation: Fades in only after the text has disappeared
   const gridOpacity = useTransform(scrollYProgress, [0.55, 0.75], [0, 1]);
   const gridScale = useTransform(scrollYProgress, [0.55, 0.75], [0.95, 1]);
   const gridY = useTransform(scrollYProgress, [0.55, 0.8], [100, 0]);
@@ -222,7 +216,7 @@ export function FeaturesSection() {
       className="relative h-[400vh] bg-black" 
       data-theme="dark"
     >
-      {/* Background Pattern */}
+      {}
       <DotPattern
         glow={true}
         width={24}
@@ -231,10 +225,10 @@ export function FeaturesSection() {
         className={cn("text-white/10 opacity-50")}
       />
 
-      {/* Sticky Content Wrapper */}
+      {}
       <div className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden">
         
-        {/* Cinematic Zooming Heading */}
+        {}
         <motion.div
           style={{ scale, opacity, filter: `blur(${textBlur})`, willChange: "transform, opacity, filter" }}
           className="absolute z-20 pointer-events-none"
@@ -251,7 +245,7 @@ export function FeaturesSection() {
           </h2>
         </motion.div>
 
-        {/* The Grid Content (Revealed later) */}
+        {}
         <motion.div 
           style={{ opacity: gridOpacity, scale: gridScale, y: gridY, willChange: "transform, opacity" }}
           className="relative z-10 w-full max-w-7xl px-6"
@@ -313,7 +307,7 @@ interface GridItemProps {
 const GridItem = ({ area, icon, title, description }: GridItemProps) => {
   return (
     <li className={cn("min-h-[14rem] list-none", area)}>
-        {/* outer container for the effect */}
+        {}
       <div className="relative h-full rounded-[1.25rem] border-[0.75px] border-zinc-800 p-2 md:rounded-[1.5rem] md:p-3">
         <GlowingEffect
           spread={40}

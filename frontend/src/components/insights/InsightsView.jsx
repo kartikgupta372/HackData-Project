@@ -88,7 +88,7 @@ export default function InsightsView() {
 
   return (
     <div className="flex h-full bg-aura-void overflow-hidden">
-      {/* Sidebar */}
+      {}
       <div className="w-64 border-r border-aura-line bg-aura-surface flex flex-col shrink-0">
         <div className="p-4 border-b border-aura-line">
           <div className="flex items-center gap-2 mb-1">
@@ -100,7 +100,7 @@ export default function InsightsView() {
           </p>
         </div>
 
-        {/* URL filter / setter */}
+        {}
         <div className="p-3 border-b border-aura-line">
           <div className="flex gap-1.5">
             <input value={inputUrl} onChange={e => setInputUrl(e.target.value)}

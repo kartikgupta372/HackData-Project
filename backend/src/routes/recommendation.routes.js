@@ -1,4 +1,3 @@
-// src/routes/recommendation.routes.js
 require('dotenv').config();
 const express = require('express');
 const router  = express.Router();
@@ -8,13 +7,8 @@ const { supabase } = require('../db/pool');
 const { searchBenchmarks } = require('../tools/vectorSearch.tool');
 const { validatePublicUrl } = require('../utils/validateUrl');
 
-// LangChain removed — using plain {role,content} objects with groq-sdk directly
-
 const _cardCache = new Map();
 
-// ── LLM helper: uses Groq (groq-sdk, free 14,400 req/day) ────────────────────
-// Wraps groq-sdk with the same .invoke([SystemMessage, HumanMessage]) interface
-// so the rest of the file needs zero changes.
 let _groqClient = null;
 function getGroqClient() {
   if (!_groqClient) {
@@ -24,12 +18,9 @@ function getGroqClient() {
   return _groqClient;
 }
 
-// Lightweight LangChain-compatible wrapper around groq-sdk
 function getLLM() {
   return {
     async invoke(messages) {
-      // messages is an array of SystemMessage / HumanMessage objects
-      // Each has a .content string property
       const formatted = messages.map(m => ({
         role: m.role || 'user',
         content: typeof m.content === 'string' ? m.content : String(m.content ?? ''),
@@ -71,8 +62,6 @@ const INTENT_LABELS = {
   full_audit:'perform a full design audit',
 };
 
-
-// -- helper: load onboarding data for a user ---------------------------------
 async function loadOnboarding(userId) {
   try {
     const { data } = await supabase.from('users').select('onboarding_data').eq('id', userId).single();
@@ -80,7 +69,6 @@ async function loadOnboarding(userId) {
   } catch { return null; }
 }
 
-// GET /recommendations/cards
 router.get('/cards', authMiddleware, async (req, res) => {
   try {
     const { status, siteUrl, limit = 50 } = req.query;
@@ -124,17 +112,11 @@ router.get('/top-sites', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-
-// POST /recommendations/generate-cards
-// Auto-loads onboarding data (domain, url, intent, style) — no need to pass from frontend.
-// Compares user's site against top sites in the same domain, generates actionable change cards.
 router.post('/generate-cards', authMiddleware, async (req, res) => {
   const { sessionId, pageAnalyses, forceRefresh } = req.body;
 
-  // 1. Load onboarding data — this is the source of truth for site context
   const ob = await loadOnboarding(req.user.id);
 
-  // Frontend may still pass siteUrl/siteType as override — respect that, else fall back to onboarding
   const rawUrl   = req.body.siteUrl || ob?.url;
   const siteUrl  = rawUrl ? validatePublicUrl(rawUrl) : null;
   if (!siteUrl) return res.status(400).json({ success: false, error: 'No website URL found. Complete onboarding first.' });
@@ -144,7 +126,6 @@ router.post('/generate-cards', authMiddleware, async (req, res) => {
   const style     = ob?.style_preference || '';
   const otherInfo = ob?.other_info || '';
 
-  // 2. Cache — 1hr per user+site, skip if forceRefresh
   const cacheKey = `${req.user.id}:${siteUrl}`;
   if (!forceRefresh) {
     const cached = _cardCache.get(cacheKey);
@@ -154,20 +135,17 @@ router.post('/generate-cards', authMiddleware, async (req, res) => {
   }
 
   try {
-    // 3. Fetch top benchmark sites for this domain
     const benchmarks = await searchBenchmarks({ siteType, designStyle: style, topK: 6 });
     if (!benchmarks.length) {
       return res.status(422).json({ success: false, error: 'No benchmarks found for this domain. Add sites to the benchmark database.' });
     }
 
-    // 4. Build rich benchmark context
     const benchmarkContext = benchmarks.map((b, i) =>
       `${i + 1}. ${b.name} (${b.url})\n` +
       `   What makes it a top site: ${b.design_notes}\n` +
       `   Design tags: ${(b.tags ?? []).join(', ')}`
     ).join('\n\n');
 
-    // 5. Build user site context
     const userCtx = [
       `Website: ${siteUrl}`,
       `Domain: ${siteType}`,
@@ -182,7 +160,6 @@ router.post('/generate-cards', authMiddleware, async (req, res) => {
         ).join('\n')
       : 'No scraped analysis yet — base cards on domain best practices vs benchmarks.';
 
-    // 6. Generate cards with AI
     const result = await getLLM().invoke([
       { role: 'system', content: `You are a senior UI/UX consultant doing a formal benchmark comparison for a client website.
 Compare the client's site against the top sites in their industry. Generate specific, actionable change cards.
@@ -221,7 +198,6 @@ Return ONLY a valid JSON array. No markdown, no text outside the array.` },
       return res.status(500).json({ success: false, error: 'AI failed to generate cards — try again' });
     }
 
-    // 7. Save to DB
     const toInsert = cards.map(c => {
       const row = {
         user_id:        req.user.id,
@@ -256,10 +232,6 @@ Return ONLY a valid JSON array. No markdown, no text outside the array.` },
   }
 });
 
-
-// POST /recommendations/cards/:cardId/action
-// approve -> creates chat session pre-loaded with a rich implementation prompt
-// reject  -> marks rejected, tracks interaction
 router.post('/cards/:cardId/action', authMiddleware, async (req, res) => {
   const { action } = req.body;
   if (!['approve', 'reject'].includes(action)) {
@@ -278,12 +250,10 @@ router.post('/cards/:cardId/action', authMiddleware, async (req, res) => {
       const { v4: uuidv4 } = require('uuid');
       chatThreadId = `aura_impl_${uuidv4()}`;
 
-      // Load onboarding for extra context in the prompt
       const ob = await loadOnboarding(req.user.id);
       const intent = INTENT_LABELS[ob?.intent] || ob?.intent || 'improve design';
       const style  = ob?.style_preference || '';
 
-      // Build a rich implementation prompt that explains the comparison and the exact change needed
       const implPrompt =
         `I have approved a design recommendation for **${card.site_url}** and want you to help me implement it.\n\n` +
         `## Approved Change: ${card.title}\n\n` +
@@ -322,7 +292,6 @@ router.post('/cards/:cardId/action', authMiddleware, async (req, res) => {
 
       chatSessionId = newSession.id;
 
-      // Save the prompt as the first user message so the chat opens ready
       await supabase.from('chat_messages').insert({
         session_id:   chatSessionId,
         thread_id:    chatThreadId,
@@ -367,9 +336,6 @@ router.post('/cards/:cardId/action', authMiddleware, async (req, res) => {
   }
 });
 
-
-// POST /recommendations/cards/:cardId/discuss
-// Opens a focused chat to understand/debate the recommendation before deciding
 router.post('/cards/:cardId/discuss', authMiddleware, async (req, res) => {
   try {
     const { data: card, error } = await supabase
@@ -419,8 +385,6 @@ router.post('/cards/:cardId/discuss', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /recommendations/vibe-prompt
-// Generates a single copy-paste-ready prompt document from multiple selected cards
 router.post('/vibe-prompt', authMiddleware, async (req, res) => {
   const { cardIds, siteUrl } = req.body;
   if (!cardIds?.length) return res.status(400).json({ success: false, error: 'cardIds array required' });

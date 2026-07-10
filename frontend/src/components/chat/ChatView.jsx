@@ -36,7 +36,6 @@ const INTENTS = [
   { value: 'full_audit',           label: 'Full design audit' },
 ]
 
-// -- URL + context modal shown when starting a new session ---------------------
 function NewSessionModal({ onSubmit, onSkip, loading }) {
   const [url, setUrl] = useState('')
   const [domain, setDomain] = useState('')
@@ -49,13 +48,13 @@ function NewSessionModal({ onSubmit, onSkip, loading }) {
     if (onboardingData?.domain) setDomain(onboardingData.domain)
     if (onboardingData?.intent) setIntent(onboardingData.intent)
     setTimeout(() => inputRef.current?.focus(), 100)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleSubmit = (e) => {
     e.preventDefault()
     let trimmed = url.trim()
     if (trimmed) {
-      if (/^https?:\/\//i.test(trimmed)) { /* already has protocol */ }
+      if (/^https?:\/\//i.test(trimmed)) {  }
       else if (/^www\./i.test(trimmed)) trimmed = 'https://' + trimmed
       else if (trimmed.includes('.')) trimmed = 'https://' + trimmed
     }
@@ -105,7 +104,7 @@ function NewSessionModal({ onSubmit, onSkip, loading }) {
             )}
           </div>
 
-          {/* Domain + Intent row */}
+          {}
           <div className="grid grid-cols-2 gap-2">
             <select value={domain} onChange={e => setDomain(e.target.value)} className={selectClass} style={selectBg}>
               <option value="">Website type...</option>

@@ -1,5 +1,3 @@
-// src/components/onboarding/OnboardingForm.jsx
-// Single-page onboarding form — shown as a full overlay on first visit to /app
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Sparkles, Globe, Loader2, CheckCircle2, BarChart2, Paperclip, X as XIcon } from 'lucide-react'
@@ -52,25 +50,22 @@ export default function OnboardingForm({ onComplete }) {
   const [done, setDone]             = useState(false)
   const [submitError, setSubmitError] = useState('')
 
-  // Pre-fill URL from landing page — only if it looks like a real public website
   useEffect(() => {
     const saved = sessionStorage.getItem('aura_landing_url')
     if (saved) {
       sessionStorage.removeItem('aura_landing_url')
-      // Only pre-fill if it's a real public URL (not localhost, meet, internal tools)
       const skip = ['localhost', '127.0.0.1', 'meet.google', '192.168', '10.0.', 'internal']
       const isInternal = skip.some(s => saved.includes(s))
       if (!isInternal) setUrl(saved)
     }
   }, [])
 
-  // Normalise URL — add https:// if missing, handle www. and bare domains
   const normaliseUrl = (raw) => {
     const t = raw.trim()
     if (!t) return t
-    if (/^https?:\/\//i.test(t)) return t          // already has protocol
-    if (/^www\./i.test(t)) return 'https://' + t    // www.example.com
-    if (t.includes('.')) return 'https://' + t       // example.com
+    if (/^https?:\/\//i.test(t)) return t
+    if (/^www\./i.test(t)) return 'https://' + t
+    if (t.includes('.')) return 'https://' + t
     return t
   }
 
@@ -146,7 +141,6 @@ export default function OnboardingForm({ onComplete }) {
         transition={{ duration:0.35, ease:[0.16,1,0.3,1] }}
         className="w-full max-w-lg bg-aura-card border border-aura-border rounded-2xl shadow-elevated my-auto"
       >
-        {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-aura-border">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-aura-accent/15 border border-aura-accent/25 flex items-center justify-center shrink-0">
@@ -159,11 +153,9 @@ export default function OnboardingForm({ onComplete }) {
           </div>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} noValidate>
           <div className="px-6 py-5 flex flex-col gap-5">
 
-            {/* Website URL */}
             <div>
               <label className="block text-xs font-semibold text-aura-muted uppercase tracking-wide mb-1.5">
                 Website URL <span className="text-aura-error">*</span>
@@ -181,7 +173,6 @@ export default function OnboardingForm({ onComplete }) {
               {errors.url && <p className="mt-1 text-xs text-aura-error">{errors.url}</p>}
             </div>
 
-            {/* Domain / Type — native select */}
             <div>
               <label className="block text-xs font-semibold text-aura-muted uppercase tracking-wide mb-1.5">
                 Website Type <span className="text-aura-error">*</span>
@@ -198,7 +189,6 @@ export default function OnboardingForm({ onComplete }) {
               {errors.domain && <p className="mt-1 text-xs text-aura-error">{errors.domain}</p>}
             </div>
 
-            {/* Intent — native select */}
             <div>
               <label className="block text-xs font-semibold text-aura-muted uppercase tracking-wide mb-1.5">
                 Main Goal <span className="text-aura-error">*</span>
@@ -215,7 +205,6 @@ export default function OnboardingForm({ onComplete }) {
               {errors.intent && <p className="mt-1 text-xs text-aura-error">{errors.intent}</p>}
             </div>
 
-            {/* Style preference — pill selector */}
             <div>
               <label className="block text-xs font-semibold text-aura-muted uppercase tracking-wide mb-2">
                 Desired Style <span className="text-aura-faint font-normal normal-case">(optional)</span>
@@ -238,7 +227,6 @@ export default function OnboardingForm({ onComplete }) {
               </div>
             </div>
 
-            {/* Other info — optional textarea */}
             <div>
               <label className="block text-xs font-semibold text-aura-muted uppercase tracking-wide mb-1.5">
                 Anything specific to fix? <span className="text-aura-faint font-normal normal-case">(optional)</span>
@@ -252,7 +240,6 @@ export default function OnboardingForm({ onComplete }) {
               />
             </div>
 
-            {/* Document upload */}
             <div>
               <label className="block text-xs font-semibold text-aura-muted uppercase tracking-wide mb-1.5">
                 Upload Assets <span className="text-aura-faint font-normal normal-case">(optional — brand guidelines, screenshots, docs)</span>
@@ -292,7 +279,6 @@ export default function OnboardingForm({ onComplete }) {
               )}
             </div>
 
-            {/* Heatmap toggle */}
             <div className="flex items-start gap-3 p-3.5 rounded-xl bg-aura-elevated border border-aura-border">
               <input
                 id="heatmap-toggle"
@@ -313,7 +299,6 @@ export default function OnboardingForm({ onComplete }) {
               </label>
             </div>
 
-            {/* Submit error */}
             {submitError && (
               <div className="px-3 py-2.5 rounded-lg bg-aura-error/10 border border-aura-error/20">
                 <p className="text-xs text-aura-error">{submitError}</p>
@@ -321,7 +306,6 @@ export default function OnboardingForm({ onComplete }) {
             )}
           </div>
 
-          {/* Footer */}
           <div className="px-6 py-4 border-t border-aura-border flex items-center justify-between gap-3">
             <p className="text-xs text-aura-faint">You can update these settings anytime.</p>
             <button

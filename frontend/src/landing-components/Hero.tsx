@@ -54,7 +54,7 @@ const Hero = ({ onTryNowClick }: { onTryNowClick?: () => void }) => {
       }}
       className="relative grid min-h-screen place-content-center overflow-hidden bg-white px-4 py-24 text-black"
     >
-      {/* Background Grid Pattern - Bottom gradient area */}
+      {}
       <GridPattern
         width={30}
         height={30}

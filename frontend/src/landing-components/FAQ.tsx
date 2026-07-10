@@ -86,9 +86,7 @@ export function FAQSection() {
               Everything you need to know about building the future with AuraDesign.
             </p>
           </div>
-          {/* <div className="text-zinc-800 font-mono text-sm hidden md:block">
-            [ DATA_QUERY: FAQ_SYSTEM ]
-          </div> */}
+          {}
         </div>
 
         <div className="border-t border-zinc-900">

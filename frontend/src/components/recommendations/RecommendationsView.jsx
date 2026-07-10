@@ -52,7 +52,6 @@ export default function RecommendationsView() {
   const [showVibeModal, setShowVibeModal] = useState(false)
   const qc = useQueryClient()
 
-  // User-editable URL — pre-fill from onboarding but user can change it
   const [inputUrl, setInputUrl]   = useState(onboardingData?.url || '')
   const [siteUrl, setSiteUrl]     = useState(onboardingData?.url || '')
   const [domainType, setDomainType] = useState(() => {
@@ -63,14 +62,13 @@ export default function RecommendationsView() {
   const handleUrlApply = () => {
     let url = inputUrl.trim()
     if (url) {
-      if (/^https?:\/\//i.test(url)) { /* already fine */ }
+      if (/^https?:\/\//i.test(url)) {  }
       else if (/^www\./i.test(url)) url = 'https://' + url
       else if (url.includes('.')) url = 'https://' + url
     }
     setInputUrl(url)
     setSiteUrl(url)
     setGenError('')
-    // Reset card list for new URL
     qc.invalidateQueries({ queryKey: ['rec-cards'] })
   }
 
@@ -83,7 +81,6 @@ export default function RecommendationsView() {
     retry: 1,
   })
 
-  // Clear selection when tab changes
   useEffect(() => { setSelectedIds(new Set()) }, [activeTab])
 
   const actionMutation = useMutation({
@@ -143,7 +140,7 @@ export default function RecommendationsView() {
 
   return (
     <div className="flex h-full bg-aura-void overflow-hidden">
-      {/* Left sidebar */}
+      {}
       <div className="w-64 border-r border-aura-line bg-aura-surface flex flex-col shrink-0">
         <div className="p-4 border-b border-aura-line">
           <div className="flex items-center gap-2 mb-1">
@@ -155,7 +152,7 @@ export default function RecommendationsView() {
           </p>
         </div>
 
-        {/* URL input — user enters any website they want to analyse */}
+        {}
         <div className="p-3 border-b border-aura-line flex flex-col gap-2">
           <p className="text-xs text-aura-faint uppercase tracking-wide">Website to Analyse</p>
           <div className="flex gap-1.5">
@@ -171,7 +168,7 @@ export default function RecommendationsView() {
               Set
             </button>
           </div>
-          {/* Domain type selector */}
+          {}
           <select
             value={domainType}
             onChange={e => setDomainType(e.target.value)}

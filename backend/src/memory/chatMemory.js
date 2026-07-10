@@ -1,4 +1,3 @@
-// src/memory/chatMemory.js — Fixed: safe URL parsing, no crash on malformed URLs
 const pool    = require('../db/pool');
 const { v4: uuidv4 } = require('uuid');
 

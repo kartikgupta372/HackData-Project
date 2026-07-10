@@ -10,7 +10,7 @@ interface NoiseProps {
 }
 
 const Noise: React.FC<NoiseProps> = ({
-  patternRefreshInterval = 4, // Slightly slowed down for better performance
+  patternRefreshInterval = 4,
   patternAlpha = 15,
   className
 }) => {
@@ -23,9 +23,9 @@ const Noise: React.FC<NoiseProps> = ({
     const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
-    const canvasSize = 512; // Reduced internal resolution for performance, still looks good due to blur/grain nature
+    const canvasSize = 512;
     const frames: ImageData[] = [];
-    const numFrames = 5; // Pre-generate 5 noise patterns
+    const numFrames = 5;
 
     for (let f = 0; f < numFrames; f++) {
       const imageData = ctx.createImageData(canvasSize, canvasSize);

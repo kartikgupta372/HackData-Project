@@ -1,7 +1,3 @@
-// src/tools/scraper.tool.js
-// Headless Puppeteer scraper — scrapes DOM, CSS, screenshot per page
-
-// dotenv MUST be first — before any process.env access
 require('dotenv').config();
 
 const puppeteer = require('puppeteer');
@@ -9,11 +5,8 @@ const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs');
 
-// Uploads directory for screenshots
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function classifyPage(url) {
   const p = new URL(url).pathname.toLowerCase();
@@ -45,14 +38,12 @@ async function extractCSS(page) {
         for (const rule of Array.from(sheet.cssRules ?? []).slice(0, 60)) {
           rules.push(rule.cssText);
         }
-      } catch (_) { /* cross-origin */ }
+      } catch (_) {  }
     }
     return rules.slice(0, 120).join('\n');
   });
 }
 
-// Zero-cost DOM summariser — no Gemini calls, instant, extracts the most
-// design-relevant info: title, headings, CTAs, nav, forms, class patterns.
 function compressDom(html, url) {
   if (!html || html.length < 100) return html ?? '';
 
@@ -76,7 +67,6 @@ function compressDom(html, url) {
   const navMatch = html.match(/<nav[\s\S]*?<\/nav>/si)?.[0] ?? '';
   const navLinks = get(/<a[^>]*>(.*?)<\/a>/gsi).map(strip).filter(t => t.length > 1).slice(0, 8);
 
-  // Extract class names that hint at design patterns
   const allClasses = (html.match(/class=['"]([^'"]+)['"]/gi) ?? [])
     .flatMap(c => c.replace(/class=['"]/, '').replace(/['"]$/, '').split(/\s+/))
     .filter(c => /btn|cta|hero|nav|header|footer|card|grid|flex|container|section|feature|price|plan|dark|light|primary|secondary/.test(c))
@@ -97,8 +87,6 @@ function compressDom(html, url) {
   ].filter(Boolean).join('\n').substring(0, 2000);
 }
 
-// ── Core scraper ───────────────────────────────────────────────────────────────
-
 async function scrapeSinglePage(browser, url, options = {}) {
   const { fullPage = false } = options;
   const page = await browser.newPage();
@@ -112,19 +100,16 @@ async function scrapeSinglePage(browser, url, options = {}) {
     await page.setRequestInterception(true);
     page.on('request', (req) => {
       const rt = req.resourceType();
-      // Block fonts, media, and tracking to speed up load
       if (['font', 'media', 'websocket'].includes(rt)) req.abort();
       else req.continue();
     });
 
-    // Try load first, fall back to domcontentloaded — avoids hanging on networkidle2
     try {
       await page.goto(url, { waitUntil: 'load', timeout: 20000 });
     } catch {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
     }
 
-    // Short settle wait for lazy-rendered content
     await new Promise(r => setTimeout(r, 800));
 
     const html = await page.content();
@@ -139,9 +124,7 @@ async function scrapeSinglePage(browser, url, options = {}) {
     const ssId = uuidv4();
     const ssPath = path.join(UPLOADS_DIR, `${ssId}.png`);
 
-    // For heatmap surveys use fullPage; for chat analysis use viewport only
     if (fullPage) {
-      // Scroll to bottom to trigger lazy images, then screenshot full page
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       await new Promise(r => setTimeout(r, 500));
       await page.evaluate(() => window.scrollTo(0, 0));
@@ -205,18 +188,14 @@ async function discoverPages(browser, rootUrl, maxPages = 5) {
   return Array.from(urls).slice(0, maxPages);
 }
 
-// ── Main export ────────────────────────────────────────────────────────────────
-
 async function scrapeWebsite(rootUrl, options = {}) {
   const { maxPages = 5, fullPage = false } = options;
 
-  // Overall hard timeout: 90s for multi-page, 45s for single page
   const TIMEOUT_MS = maxPages === 1 ? 45000 : 90000;
 
   const scrapePromise = (async () => {
     const browser = await puppeteer.launch({
       headless: 'new',
-      // In production (Railway/Docker), PUPPETEER_EXECUTABLE_PATH points to system Chromium
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: [
         '--no-sandbox',
@@ -227,7 +206,7 @@ async function scrapeWebsite(rootUrl, options = {}) {
         '--no-zygote',
         '--disable-extensions',
         '--disable-background-networking',
-        '--single-process',  // needed in some container environments
+        '--single-process',
       ],
     });
 

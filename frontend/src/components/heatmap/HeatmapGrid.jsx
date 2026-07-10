@@ -13,15 +13,15 @@ function scoreToColor(score, alpha = 1) {
 }
 
 export default function HeatmapGrid({ data, siteUrl }) {
-  const [view, setView] = useState('full') // 'full' | 'first3s'
-  const grid = data?.grid_data   // 20x20 array
+  const [view, setView] = useState('full')
+  const grid = data?.grid_data
   const hotZones = data?.hot_zones ?? []
   const aboveFold = data?.above_fold_pct
   const predicted = data?.predicted
 
   return (
     <div className="flex-1 flex flex-col p-6 overflow-auto">
-      {/* Header */}
+      {}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="font-display font-semibold text-aura-text text-sm">{siteUrl}</h3>

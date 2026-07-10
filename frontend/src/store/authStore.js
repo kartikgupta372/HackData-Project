@@ -14,14 +14,13 @@ export const useAuthStore = create((set, get) => ({
       const res = await authApi.me()
       const user = res.data.data.user
       set({ user, isAuthenticated: true, isLoading: false })
-      // Fetch onboarding status alongside auth check
       try {
         const ob = await onboardingApi.getStatus()
         set({
           onboardingCompleted: ob.data.data.onboarding_completed ?? false,
           onboardingData: ob.data.data.onboarding_data ?? null,
         })
-      } catch { /* non-fatal */ }
+      } catch {  }
     } catch {
       set({ user: null, isAuthenticated: false, isLoading: false })
     }
@@ -31,14 +30,13 @@ export const useAuthStore = create((set, get) => ({
     const res = await authApi.login({ email, password })
     const user = res.data.data.user
     set({ user, isAuthenticated: true })
-    // Fetch onboarding status after login
     try {
       const ob = await onboardingApi.getStatus()
       set({
         onboardingCompleted: ob.data.data.onboarding_completed ?? false,
         onboardingData: ob.data.data.onboarding_data ?? null,
       })
-    } catch { /* non-fatal */ }
+    } catch {  }
     return user
   },
 
@@ -52,14 +50,13 @@ export const useAuthStore = create((set, get) => ({
     const res = await authApi.googleLogin(credential)
     const user = res.data.data.user
     set({ user, isAuthenticated: true })
-    // Fetch onboarding status after Google login
     try {
       const ob = await onboardingApi.getStatus()
       set({
         onboardingCompleted: ob.data.data.onboarding_completed ?? false,
         onboardingData: ob.data.data.onboarding_data ?? null,
       })
-    } catch { /* non-fatal */ }
+    } catch {  }
     return user
   },
 

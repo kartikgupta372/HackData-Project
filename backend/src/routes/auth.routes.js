@@ -1,4 +1,3 @@
-// src/routes/auth.routes.js — Fixed: rate limiting on login/register, no user enumeration
 const express    = require('express');
 const bcrypt     = require('bcrypt');
 const jwt        = require('jsonwebtoken');
@@ -13,9 +12,8 @@ if (!process.env.JWT_SECRET) {
   process.exit(1);
 }
 
-// FIX: rate-limit login & register — prevents brute force
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 min
+  windowMs: 15 * 60 * 1000,
   max: 15,
   keyGenerator: (req) => req.ip,
   message: { success: false, error: 'Too many attempts. Please wait 15 minutes.' },
@@ -26,8 +24,6 @@ const authLimiter = rateLimit({
 const COOKIE_OPTS = {
   httpOnly: true,
   secure:   process.env.NODE_ENV === 'production',
-  // 'none' required for cross-domain cookies (Vercel frontend <-> Railway backend)
-  // 'lax' works for local dev (same origin via Vite proxy)
   sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
   maxAge:   7 * 24 * 60 * 60 * 1000,
 };
@@ -36,7 +32,6 @@ function signToken(userId) {
   return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 }
 
-// ── POST /auth/register ───────────────────────────────────────────────────────
 router.post('/register', authLimiter, async (req, res) => {
   const { name, email, password } = req.body;
   if (!name?.trim() || !email?.trim() || !password)
@@ -44,7 +39,6 @@ router.post('/register', authLimiter, async (req, res) => {
   if (password.length < 8)
     return res.status(400).json({ success: false, error: 'Password must be 8+ characters' });
 
-  // Basic email format check
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     return res.status(400).json({ success: false, error: 'Invalid email format' });
 
@@ -71,7 +65,6 @@ router.post('/register', authLimiter, async (req, res) => {
   }
 });
 
-// ── POST /auth/login ──────────────────────────────────────────────────────────
 router.post('/login', authLimiter, async (req, res) => {
   const { email, password } = req.body;
   if (!email?.trim() || !password)
@@ -81,7 +74,6 @@ router.post('/login', authLimiter, async (req, res) => {
     const { data: user, error } = await supabase
       .from('users').select('*').eq('email', email.toLowerCase().trim()).maybeSingle();
 
-    // FIX: always run bcrypt even on miss to prevent timing attacks
     const dummyHash = '$2b$12$invalidhashpaddingtopreventimerattacksXXXXXXXXXXXXXXXXXX';
     const hashToCheck = user?.password_hash ?? dummyHash;
     const valid = await bcrypt.compare(password, hashToCheck);
@@ -99,7 +91,6 @@ router.post('/login', authLimiter, async (req, res) => {
   }
 });
 
-// ── POST /auth/google ─────────────────────────────────────────────────────────
 router.post('/google', authLimiter, async (req, res) => {
   const { credential } = req.body;
   if (!credential)
@@ -118,7 +109,6 @@ router.post('/google', authLimiter, async (req, res) => {
     if (!email)
       return res.status(400).json({ success: false, error: 'Unable to retrieve email from Google' });
 
-    // Find or create user
     let { data: user } = await supabase
       .from('users')
       .select('*')
@@ -126,7 +116,6 @@ router.post('/google', authLimiter, async (req, res) => {
       .maybeSingle();
 
     if (!user) {
-      // Create new user (no password needed for Google auth)
       const dummyHash = await bcrypt.hash(`google_oauth_${googleId}`, 12);
       const { data: newUser, error } = await supabase
         .from('users')
@@ -154,12 +143,10 @@ router.post('/google', authLimiter, async (req, res) => {
   }
 });
 
-// ── GET /auth/me ──────────────────────────────────────────────────────────────
 router.get('/me', authMiddleware, (req, res) => {
   res.json({ success: true, data: { user: req.user } });
 });
 
-// ── POST /auth/logout ─────────────────────────────────────────────────────────
 router.post('/logout', (req, res) => {
   res.clearCookie('aura_token', {
     httpOnly: true,

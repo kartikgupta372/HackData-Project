@@ -9,7 +9,7 @@ export const Preloader = () => {
       exit={{ opacity: 0, transition: { duration: 0.8, ease: "easeInOut" } }}
       className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black"
     >
-      {/* Brand Logo/Name */}
+      {}
       <div className="relative mb-8">
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
@@ -20,7 +20,7 @@ export const Preloader = () => {
           AURA<span className="text-[#f73100ff]">DESIGN</span>
         </motion.h1>
         
-        {/* Progress Bar Container */}
+        {}
         <div className="absolute -bottom-4 left-0 w-full h-[2px] bg-zinc-900 overflow-hidden rounded-full">
           <motion.div
             initial={{ x: "-100%" }}

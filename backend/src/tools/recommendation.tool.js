@@ -1,24 +1,13 @@
-// src/tools/recommendation.tool.js
-// Personalized recommendation + page ranking engine
-// Learns user preferences from interactions, ranks pages by composite score
-
 require('dotenv').config();
 const pool = require('../db/pool');
 
-// ══════════════════════════════════════════════════════════════════════════════
-// SCORING WEIGHTS
-// ══════════════════════════════════════════════════════════════════════════════
 const WEIGHTS = {
-  design:     0.40,  // analysis scores (Fitts, Gestalt, etc.)
-  heatmap:    0.25,  // quality/confidence of heatmap data
-  engagement: 0.20,  // how much users engaged with this page's analysis
-  improvement:0.15,  // how much it improved after enhancement
+  design:     0.40,
+  heatmap:    0.25,
+  engagement: 0.20,
+  improvement:0.15,
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
-// PUBLIC API 1 — Track a user interaction
-// Call this whenever user applies a fix, likes a benchmark, copies code, etc.
-// ══════════════════════════════════════════════════════════════════════════════
 async function trackInteraction(userId, sessionId, data) {
   const { siteUrl, pageKey, actionType, actionData } = data;
 
@@ -28,13 +17,9 @@ async function trackInteraction(userId, sessionId, data) {
     [userId, sessionId ?? null, siteUrl ?? null, pageKey ?? null, actionType, JSON.stringify(actionData ?? {})]
   );
 
-  // Update preference profile async (don't block response)
   updatePreferenceProfile(userId).catch(err => console.warn('Profile update error:', err.message));
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// PUBLIC API 2 — Update user preference profile from interaction history
-// ══════════════════════════════════════════════════════════════════════════════
 async function updatePreferenceProfile(userId) {
   const { rows } = await pool.query(
     `SELECT action_type, action_data FROM user_interactions WHERE user_id = $1`,
@@ -50,20 +35,19 @@ async function updatePreferenceProfile(userId) {
     const d = row.action_data ?? {};
     if (row.action_type === 'applied_fix') {
       applied++;
-      if (d.law) laws[d.law] = (laws[d.law] ?? 0) + 2;   // applied = stronger signal
+      if (d.law) laws[d.law] = (laws[d.law] ?? 0) + 2;
       if (d.style) styles[d.style] = (styles[d.style] ?? 0) + 2;
     } else if (row.action_type === 'dismissed_fix') {
       dismissed++;
-      if (d.law) laws[d.law] = (laws[d.law] ?? 0) - 1;   // dismissed = weaker/negative
+      if (d.law) laws[d.law] = (laws[d.law] ?? 0) - 1;
     } else if (row.action_type === 'requested_style') {
-      if (d.style) styles[d.style] = (styles[d.style] ?? 0) + 3; // explicit style request = strongest
+      if (d.style) styles[d.style] = (styles[d.style] ?? 0) + 3;
     } else if (row.action_type === 'liked_benchmark') {
       if (d.style) styles[d.style] = (styles[d.style] ?? 0) + 1;
     }
     if (d.siteType) siteTypes[d.siteType] = (siteTypes[d.siteType] ?? 0) + 1;
   }
 
-  // Top 3 preferred styles and laws (positive scores only)
   const preferredStyles = Object.entries(styles)
     .filter(([, v]) => v > 0)
     .sort((a, b) => b[1] - a[1])
@@ -90,13 +74,9 @@ async function updatePreferenceProfile(userId) {
   return { preferredStyles, preferredLaws, applied, dismissed };
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// PUBLIC API 3 — Upsert page ranking after analysis
-// ══════════════════════════════════════════════════════════════════════════════
 async function updatePageRanking(siteUrl, pageKey, siteType, analysisScores, heatmapData) {
   const overall = analysisScores?.overall ?? 0;
 
-  // Heatmap score: based on session count and confidence
   const heatmapScore = heatmapData
     ? heatmapData.session_count >= 20 ? 100
     : heatmapData.session_count >= 5  ? 60
@@ -105,7 +85,6 @@ async function updatePageRanking(siteUrl, pageKey, siteType, analysisScores, hea
     : 0
     : 0;
 
-  // Fetch existing engagement score
   const { rows: existing } = await pool.query(
     'SELECT engagement_score, design_score, analysis_count, improvement_delta FROM page_rankings WHERE site_url=$1 AND page_key=$2',
     [siteUrl, pageKey]
@@ -132,9 +111,6 @@ async function updatePageRanking(siteUrl, pageKey, siteType, analysisScores, hea
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// PUBLIC API 4 — Increment engagement score when user interacts with a page
-// ══════════════════════════════════════════════════════════════════════════════
 async function incrementEngagement(siteUrl, pageKey, points = 10) {
   await pool.query(
     `UPDATE page_rankings
@@ -150,9 +126,6 @@ async function incrementEngagement(siteUrl, pageKey, points = 10) {
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// PUBLIC API 5 — Record improvement delta after code enhancement
-// ══════════════════════════════════════════════════════════════════════════════
 async function recordImprovement(siteUrl, pageKey, beforeScore, afterScore) {
   const delta = Math.max(0, afterScore - beforeScore);
   await pool.query(
@@ -169,19 +142,13 @@ async function recordImprovement(siteUrl, pageKey, beforeScore, afterScore) {
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// PUBLIC API 6 — Get personalized ranked pages for a user
-// Returns top pages ranked by composite_score, biased toward user preferences
-// ══════════════════════════════════════════════════════════════════════════════
 async function getRankedPages(userId, siteType = null, limit = 10) {
-  // Get user preferences
   const { rows: profRows } = await pool.query(
     'SELECT preferred_styles, preferred_laws, site_type_history FROM user_preference_profiles WHERE user_id=$1',
     [userId]
   );
   const profile = profRows[0];
 
-  // Get top ranked pages, optionally filtered by site type
   const { rows: pages } = await pool.query(
     `SELECT pr.*, da.critique_text, da.recommendations
      FROM page_rankings pr
@@ -192,7 +159,6 @@ async function getRankedPages(userId, siteType = null, limit = 10) {
     [siteType, limit]
   );
 
-  // Apply preference bias if profile exists
   if (profile?.site_type_history) {
     const siteTypeHistory = profile.site_type_history;
     return pages.map(page => {
@@ -204,9 +170,6 @@ async function getRankedPages(userId, siteType = null, limit = 10) {
   return pages;
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// PUBLIC API 7 — Get user preference profile (for chatbot context)
-// ══════════════════════════════════════════════════════════════════════════════
 async function getUserProfile(userId) {
   const { rows } = await pool.query(
     'SELECT * FROM user_preference_profiles WHERE user_id=$1',
@@ -215,10 +178,6 @@ async function getUserProfile(userId) {
   return rows[0] ?? null;
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// PUBLIC API 8 — Get top benchmark sites ranked by how well they match
-// user preferences (used in benchmarkRagNode to bias vector search results)
-// ══════════════════════════════════════════════════════════════════════════════
 async function rankBenchmarksForUser(userId, benchmarks) {
   const profile = await getUserProfile(userId);
   if (!profile || !benchmarks?.length) return benchmarks;

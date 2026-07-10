@@ -19,7 +19,6 @@ const llm = new ChatGoogleGenerativeAI({
     console.log(r.content.substring(0, 800));
     console.log('=== LENGTH:', r.content.length);
     
-    // Try parse
     const clean = r.content
       .replace(/```json\n?/g, '')
       .replace(/```\n?/g, '')

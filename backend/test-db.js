@@ -2,24 +2,18 @@ require('dotenv').config();
 const { Pool } = require('pg');
 const dns = require('dns');
 
-// Test IPv6 direct + pooler approaches
 const PASSWORD = 'AuraDesign2024';
 const REF = 'bumjqmfftomwvczpevgu';
 const IPV6 = '2406:da14:271:991f:b2f0:c634:d5ae:43d9';
 
 const configs = [
-  // IPv6 direct on port 5432
   { label: 'IPv6 DIRECT 5432', user: 'postgres', host: IPV6, port: 5432 },
-  // IPv6 direct on port 6543
   { label: 'IPv6 DIRECT 6543', user: 'postgres', host: IPV6, port: 6543 },
-  // Supabase Session pooler (uses port 5432 on pooler - different from direct)
   { label: 'Pooler SESSION mode 5432', user: `postgres.${REF}`, host: `aws-0-ap-northeast-1.pooler.supabase.com`, port: 5432 },
-  // Try with just the project hostname on 6543
   { label: 'Project host 6543', user: `postgres.${REF}`, host: `${REF}.supabase.co`, port: 6543 },
 ];
 
 (async () => {
-  // First check IPv6 connectivity
   console.log('--- Checking IPv6 connectivity ---');
   const net = require('net');
   const ipv6test = new net.Socket();

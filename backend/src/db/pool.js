@@ -1,4 +1,3 @@
-﻿// src/db/pool.js — Fixed: $N regex for params >=10, defensive service key check
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 
@@ -28,7 +27,7 @@ function castParams(sql, strParams) {
   strParams.forEach((p, i) => {
     if (p === null || p === undefined) return;
     const n   = i + 1;
-    const re  = new RegExp('\\$' + n + '\\b(?!::)', 'g'); // FIX: \b not (?![0-9])
+    const re  = new RegExp('\\$' + n + '\\b(?!::)', 'g');
     let cast;
     if (UUID_RE.test(p))  cast = '::uuid';
     else if (BOOL_RE.test(p))  cast = '::boolean';
@@ -72,7 +71,6 @@ const poolProxy = {
   end: async () => {},
 };
 
-// Startup test
 (async () => {
   try {
     const { error } = await supabase.from('users').select('id', { count: 'exact', head: true });

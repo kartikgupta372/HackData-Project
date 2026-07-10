@@ -1,7 +1,3 @@
-// src/utils/sseRegistry.js
-// Module-level registry of SSE response writers, keyed by thread_id.
-// Agents import this to emit events without needing _sseWriter in LangGraph state.
-
 const writers = new Map();
 
 function setWriter(threadId, res) {
