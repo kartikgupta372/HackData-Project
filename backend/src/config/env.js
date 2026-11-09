@@ -57,6 +57,10 @@ const config = {
   pineconeApiKey: process.env.PINECONE_API_KEY || '',
   pineconeIndex: process.env.PINECONE_INDEX_BENCHMARKS || 'aura-benchmarks',
   googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+  githubClientId: process.env.GITHUB_CLIENT_ID || '',
+  githubClientSecret: process.env.GITHUB_CLIENT_SECRET || '',
+  // One-click guest accounts (no email needed). Set ALLOW_GUEST_LOGIN=false to turn off.
+  allowGuestLogin: (process.env.ALLOW_GUEST_LOGIN || 'true').toLowerCase() !== 'false',
 
   // Where screenshots / uploaded documents are stored.
   // 'supabase' keeps them in Supabase Storage (survives redeploys — use in production),

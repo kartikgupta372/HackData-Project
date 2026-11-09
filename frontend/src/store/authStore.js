@@ -60,6 +60,13 @@ export const useAuthStore = create((set, get) => ({
     return user
   },
 
+  loginAsGuest: async () => {
+    const res = await authApi.guestLogin()
+    const user = res.data.data.user
+    set({ user, isAuthenticated: true, onboardingCompleted: false })
+    return user
+  },
+
   setAuthUser: (user) => {
     set({ user, isAuthenticated: true })
   },

@@ -1,17 +1,19 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Sparkles, Eye, EyeOff } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
 import GoogleIdentityButton from '../components/auth/GoogleIdentityButton'
+import AlternativeSignIn, { authErrorMessage } from '../components/auth/AlternativeSignIn'
 
 export default function LoginPage() {
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw]     = useState(false)
-  const [error, setError]       = useState('')
+  const [params]                 = useSearchParams()
+  const [error, setError]       = useState(authErrorMessage(params.get('auth_error')))
   const [loading, setLoading]   = useState(false)
   const { login, setAuthUser } = useAuthStore()
   const nav                     = useNavigate()
@@ -115,6 +117,11 @@ export default function LoginPage() {
               width={320}
             />
           </div>
+
+          <AlternativeSignIn
+            onSuccess={(user) => { setError(''); setAuthUser(user); nav('/app', { replace: true }) }}
+            onError={(message) => setError(message)}
+          />
         </div>
 
         <p className="text-center text-xs text-aura-muted mt-4">

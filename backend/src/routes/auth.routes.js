@@ -3,6 +3,7 @@ const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
 const rateLimit  = require('express-rate-limit');
 const { OAuth2Client } = require('google-auth-library');
+const crypto     = require('crypto');
 const router     = express.Router();
 const { supabase } = require('../db/pool');
 const { authMiddleware } = require('../middleware/auth.middleware');
@@ -143,6 +144,138 @@ router.post('/google', authLimiter, async (req, res) => {
   } catch (err) {
     console.error('Google auth error:', err.message);
     return res.status(401).json({ success: false, error: 'Google authentication failed' });
+  }
+});
+
+// ── Which sign-in methods are available (the login page reads this) ──────────
+router.get('/providers', (_req, res) => {
+  res.json({
+    success: true,
+    data: {
+      password: true,
+      google: Boolean(config.googleClientId),
+      github: Boolean(config.githubClientId && config.githubClientSecret),
+      guest: config.allowGuestLogin,
+    },
+  });
+});
+
+// ── Guest access: instant account, no email or password ──────────────────────
+const guestLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  message: { success: false, error: 'Too many guest sessions from this network. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.post('/guest', guestLimiter, async (_req, res) => {
+  if (!config.allowGuestLogin)
+    return res.status(403).json({ success: false, error: 'Guest access is turned off' });
+  try {
+    const id = crypto.randomBytes(5).toString('hex');
+    const unusable = await bcrypt.hash(`guest:${crypto.randomBytes(16).toString('hex')}`, 10);
+    const { data: user, error } = await supabase
+      .from('users')
+      .insert({ name: `Guest ${id.slice(0, 4).toUpperCase()}`, email: `guest-${id}@guest.aura.local`, password_hash: unusable })
+      .select('id, name, email, plan').single();
+    if (error) throw new Error(error.message);
+    res.cookie('aura_token', signToken(user.id), COOKIE_OPTS);
+    return res.status(201).json({ success: true, data: { user } });
+  } catch (err) {
+    console.error('Guest login error:', err.message);
+    return res.status(500).json({ success: false, error: 'Could not start a guest session. Please try again.' });
+  }
+});
+
+// ── GitHub sign-in (OAuth web flow) ──────────────────────────────────────────
+const STATE_COOKIE = 'aura_oauth_state';
+
+function githubCallbackUrl(req) {
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'https').toString().split(',')[0];
+  const host  = (req.headers['x-forwarded-host'] || req.headers.host || '').toString().split(',')[0];
+  return `${proto}://${host}/auth/github/callback`;
+}
+
+function backToLogin(res, code) {
+  res.redirect(`/login?auth_error=${encodeURIComponent(code)}`);
+}
+
+router.get('/github', authLimiter, (req, res) => {
+  if (!config.githubClientId || !config.githubClientSecret) return backToLogin(res, 'github_not_configured');
+  const state = crypto.randomBytes(16).toString('hex');
+  res.cookie(STATE_COOKIE, jwt.sign({ state }, config.jwtSecret, { expiresIn: '10m' }), {
+    httpOnly: true, secure: config.cookieSecure, sameSite: 'lax', path: '/auth', maxAge: 10 * 60 * 1000,
+  });
+  const params = new URLSearchParams({
+    client_id: config.githubClientId,
+    redirect_uri: githubCallbackUrl(req),
+    scope: 'read:user user:email',
+    state,
+    allow_signup: 'true',
+  });
+  res.redirect(`https://github.com/login/oauth/authorize?${params}`);
+});
+
+router.get('/github/callback', authLimiter, async (req, res) => {
+  const { code, state, error: ghError } = req.query;
+  res.clearCookie(STATE_COOKIE, { path: '/auth' });
+  if (ghError) return backToLogin(res, 'github_denied');
+  if (!config.githubClientId || !config.githubClientSecret) return backToLogin(res, 'github_not_configured');
+  if (typeof code !== 'string' || typeof state !== 'string') return backToLogin(res, 'github_failed');
+
+  try {
+    // The state cookie proves this browser started the flow (blocks login-CSRF).
+    let saved;
+    try { saved = jwt.verify(req.cookies?.[STATE_COOKIE] || '', config.jwtSecret).state; } catch { saved = null; }
+    if (!saved || saved !== state) return backToLogin(res, 'github_state');
+
+    const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: config.githubClientId,
+        client_secret: config.githubClientSecret,
+        code,
+        redirect_uri: githubCallbackUrl(req),
+      }),
+    });
+    const tokenJson = await tokenRes.json();
+    const accessToken = tokenJson.access_token;
+    if (!accessToken) return backToLogin(res, 'github_failed');
+
+    const gh = { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json', 'User-Agent': 'aura-design-ai' };
+    const [profileRes, emailsRes] = await Promise.all([
+      fetch('https://api.github.com/user', { headers: gh }),
+      fetch('https://api.github.com/user/emails', { headers: gh }),
+    ]);
+    const profile = await profileRes.json();
+    const emails = emailsRes.ok ? await emailsRes.json() : [];
+    const primary = Array.isArray(emails)
+      ? (emails.find((e) => e.primary && e.verified) || emails.find((e) => e.verified))
+      : null;
+    const email = (primary?.email || '').toLowerCase().trim();
+    if (!email) return backToLogin(res, 'github_no_email');
+
+    let { data: user, error: lookupErr } = await supabase
+      .from('users').select('*').eq('email', email).maybeSingle();
+    if (lookupErr) throw new Error(lookupErr.message);
+
+    if (!user) {
+      const unusable = await bcrypt.hash(`github:${profile.id}:${crypto.randomBytes(16).toString('hex')}`, 10);
+      const { data: created, error } = await supabase
+        .from('users')
+        .insert({ name: String(profile.name || profile.login || email.split('@')[0]).substring(0, 100), email, password_hash: unusable })
+        .select('id, name, email, plan').single();
+      if (error) throw new Error(error.message);
+      user = created;
+    }
+
+    res.cookie('aura_token', signToken(user.id), COOKIE_OPTS);
+    return res.redirect('/app');
+  } catch (err) {
+    console.error('GitHub auth error:', err.message);
+    return backToLogin(res, 'github_failed');
   }
 });
 

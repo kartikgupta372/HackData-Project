@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/authStore'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
 import GoogleIdentityButton from '../components/auth/GoogleIdentityButton'
+import AlternativeSignIn from '../components/auth/AlternativeSignIn'
 
 export default function RegisterPage() {
   const [name, setName]         = useState('')
@@ -91,6 +92,11 @@ export default function RegisterPage() {
               width={320}
             />
           </div>
+
+          <AlternativeSignIn
+            onSuccess={(user) => { setError(''); setAuthUser(user); nav('/app', { replace: true }) }}
+            onError={(message) => setError(message)}
+          />
         </div>
 
         <p className="text-center text-xs text-aura-muted mt-4">
