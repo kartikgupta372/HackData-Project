@@ -1,4 +1,3 @@
-require('dotenv').config();
 const pool = require('../db/pool');
 
 const WEIGHTS = {
@@ -114,11 +113,11 @@ async function updatePageRanking(siteUrl, pageKey, siteType, analysisScores, hea
 async function incrementEngagement(siteUrl, pageKey, points = 10) {
   await pool.query(
     `UPDATE page_rankings
-     SET engagement_score = LEAST(100, engagement_score + $3),
+     SET engagement_score = LEAST(100, engagement_score + $3::float),
          composite_score = (
            design_score * ${WEIGHTS.design} +
            heatmap_score * ${WEIGHTS.heatmap} +
-           LEAST(100, engagement_score + $3) * ${WEIGHTS.engagement} +
+           LEAST(100, engagement_score + $3::float) * ${WEIGHTS.engagement} +
            LEAST(100, improvement_delta * 2) * ${WEIGHTS.improvement}
          )
      WHERE site_url=$1 AND page_key=$2`,
@@ -130,12 +129,12 @@ async function recordImprovement(siteUrl, pageKey, beforeScore, afterScore) {
   const delta = Math.max(0, afterScore - beforeScore);
   await pool.query(
     `UPDATE page_rankings
-     SET improvement_delta = $3,
+     SET improvement_delta = $3::float,
          composite_score = (
            design_score * ${WEIGHTS.design} +
            heatmap_score * ${WEIGHTS.heatmap} +
            engagement_score * ${WEIGHTS.engagement} +
-           LEAST(100, $3 * 2) * ${WEIGHTS.improvement}
+           LEAST(100, $3::float * 2) * ${WEIGHTS.improvement}
          )
      WHERE site_url=$1 AND page_key=$2`,
     [siteUrl, pageKey, delta]
@@ -143,19 +142,30 @@ async function recordImprovement(siteUrl, pageKey, beforeScore, afterScore) {
 }
 
 async function getRankedPages(userId, siteType = null, limit = 10) {
-  const { rows: profRows } = await pool.query(
-    'SELECT preferred_styles, preferred_laws, site_type_history FROM user_preference_profiles WHERE user_id=$1',
-    [userId]
-  );
-  const profile = profRows[0];
+  limit = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 50);
+  const profile = userId
+    ? (await pool.query(
+        'SELECT preferred_styles, preferred_laws, site_type_history FROM user_preference_profiles WHERE user_id=$1',
+        [userId]
+      )).rows[0]
+    : null;
 
+  // Latest analysis for the same site + page (the old join matched on page_key
+  // alone, which duplicated rows and mixed in other users' analyses).
   const { rows: pages } = await pool.query(
     `SELECT pr.*, da.critique_text, da.recommendations
      FROM page_rankings pr
-     LEFT JOIN design_analyses da ON da.page_key = pr.page_key
-     WHERE ($1::text IS NULL OR pr.site_type = $1)
+     LEFT JOIN LATERAL (
+       SELECT d.critique_text, d.recommendations
+       FROM design_analyses d
+       JOIN chat_sessions cs ON cs.id = d.session_id
+       WHERE d.page_key = pr.page_key AND cs.site_url = pr.site_url
+       ORDER BY d.created_at DESC
+       LIMIT 1
+     ) da ON true
+     WHERE ($1::text IS NULL OR pr.site_type = $1::text)
      ORDER BY pr.composite_score DESC
-     LIMIT $2`,
+     LIMIT $2::int`,
     [siteType, limit]
   );
 

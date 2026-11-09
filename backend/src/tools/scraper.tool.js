@@ -1,12 +1,41 @@
-require('dotenv').config();
-
 const puppeteer = require('puppeteer');
 const { v4: uuidv4 } = require('uuid');
-const path = require('path');
-const fs = require('fs');
+const { config } = require('../config/env');
+const storage = require('../services/storage');
+const { isPrivateHost } = require('../utils/validateUrl');
 
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+// Each scrape launches a Chromium (~150-300MB RAM). Cap how many run at once so
+// a burst of requests can't take the server down.
+const MAX_FULL_PAGE_HEIGHT = 12000;
+const PAGE_CONCURRENCY = parseInt(process.env.SCRAPE_PAGE_CONCURRENCY || "1", 10);
+let running = 0;
+const waiting = [];
+async function acquireSlot() {
+  if (running < config.maxConcurrentScrapes) { running++; return; }
+  await new Promise(resolve => waiting.push(resolve));
+  running++;
+}
+// Regular servers use the Chromium from PUPPETEER_EXECUTABLE_PATH (Docker) or
+// Puppeteer's own download. On Vercel/AWS Lambda we use @sparticuz/chromium,
+// a Chromium build made for serverless.
+async function launchBrowser(args) {
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    const chromium = require('@sparticuz/chromium');
+    return puppeteer.launch({
+      headless: true,
+      executablePath: await chromium.executablePath(),
+      args: [...chromium.args, '--disable-extensions'],
+      defaultViewport: { width: 1280, height: 800 },
+    });
+  }
+  return puppeteer.launch({ headless: true, executablePath: config.puppeteerExecutablePath, args });
+}
+
+function releaseSlot() {
+  running--;
+  const next = waiting.shift();
+  if (next) next();
+}
 
 function classifyPage(url) {
   const p = new URL(url).pathname.toLowerCase();
@@ -100,8 +129,16 @@ async function scrapeSinglePage(browser, url, options = {}) {
     await page.setRequestInterception(true);
     page.on('request', (req) => {
       const rt = req.resourceType();
-      if (['font', 'media', 'websocket'].includes(rt)) req.abort();
-      else req.continue();
+      let blocked = ['font', 'media', 'websocket'].includes(rt);
+      if (!blocked) {
+        try {
+          const u = new URL(req.url());
+          // Block redirects / sub-requests to internal addresses (SSRF).
+          if (['http:', 'https:'].includes(u.protocol) && isPrivateHost(u.hostname)) blocked = true;
+        } catch { /* data:, blob: etc. */ }
+      }
+      if (blocked) req.abort().catch(() => {});
+      else req.continue().catch(() => {});
     });
 
     try {
@@ -122,17 +159,27 @@ async function scrapeSinglePage(browser, url, options = {}) {
     ).catch(() => false);
 
     const ssId = uuidv4();
-    const ssPath = path.join(UPLOADS_DIR, `${ssId}.png`);
-
+    let shot;
+    let fullPageCaptured = false;
     if (fullPage) {
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       await new Promise(r => setTimeout(r, 500));
       await page.evaluate(() => window.scrollTo(0, 0));
       await new Promise(r => setTimeout(r, 300));
-      await page.screenshot({ path: ssPath, fullPage: true });
+      const height = await page.evaluate(() => Math.max(
+        document.body?.scrollHeight ?? 0, document.documentElement?.scrollHeight ?? 0
+      )).catch(() => 800);
+      const clipHeight = Math.max(800, Math.min(height, MAX_FULL_PAGE_HEIGHT));
+      shot = await page.screenshot({
+        type: 'png',
+        clip: { x: 0, y: 0, width: 1280, height: clipHeight },
+        captureBeyondViewport: true,
+      });
+      fullPageCaptured = height <= MAX_FULL_PAGE_HEIGHT;
     } else {
-      await page.screenshot({ path: ssPath, fullPage: false });
+      shot = await page.screenshot({ type: 'png', fullPage: false });
     }
+    const screenshotUrl = await storage.save(Buffer.from(shot), `screenshots/${ssId}.png`, 'image/png');
 
     const domSummary = compressDom(html, url);
 
@@ -144,7 +191,8 @@ async function scrapeSinglePage(browser, url, options = {}) {
       html: html.substring(0, 50000),
       css: css.substring(0, 5000),
       dom_summary: domSummary,
-      screenshot_url: `/uploads/${ssId}.png`,
+      screenshot_url: screenshotUrl,
+      full_page_captured: fullPageCaptured,
       element_count: elementCount,
       has_cta: hasCta,
     };
@@ -193,11 +241,12 @@ async function scrapeWebsite(rootUrl, options = {}) {
 
   const TIMEOUT_MS = maxPages === 1 ? 45000 : 90000;
 
+  let browser = null;
+  let timer = null;
+  await acquireSlot();
+
   const scrapePromise = (async () => {
-    const browser = await puppeteer.launch({
-      headless: 'new',
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-      args: [
+    browser = await launchBrowser([
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
@@ -206,9 +255,7 @@ async function scrapeWebsite(rootUrl, options = {}) {
         '--no-zygote',
         '--disable-extensions',
         '--disable-background-networking',
-        '--single-process',
-      ],
-    });
+      ]);
 
     try {
       const pageUrls = maxPages === 1
@@ -218,8 +265,8 @@ async function scrapeWebsite(rootUrl, options = {}) {
 
       const results = {};
 
-      for (let i = 0; i < pageUrls.length; i += 3) {
-        const chunk = pageUrls.slice(i, i + 3);
+      for (let i = 0; i < pageUrls.length; i += PAGE_CONCURRENCY) {
+        const chunk = pageUrls.slice(i, i + PAGE_CONCURRENCY);
         const settled = await Promise.allSettled(
           chunk.map(url => scrapeSinglePage(browser, url, { fullPage }))
         );
@@ -231,15 +278,24 @@ async function scrapeWebsite(rootUrl, options = {}) {
 
       return results;
     } finally {
-      await browser.close().catch(() => { });
+      await browser?.close().catch(() => { });
+      browser = null;
     }
   })();
 
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error(`Scrape timed out after ${TIMEOUT_MS / 1000}s`)), TIMEOUT_MS)
-  );
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Scrape timed out after ${TIMEOUT_MS / 1000}s`)), TIMEOUT_MS);
+  });
 
-  return Promise.race([scrapePromise, timeoutPromise]);
+  try {
+    return await Promise.race([scrapePromise, timeoutPromise]);
+  } finally {
+    clearTimeout(timer);
+    // On timeout the browser may still be open — kill it so it doesn't leak.
+    if (browser) await browser.close().catch(() => { });
+    scrapePromise.catch(() => { });
+    releaseSlot();
+  }
 }
 
 module.exports = { scrapeWebsite, normalizePageKey, classifyPage };

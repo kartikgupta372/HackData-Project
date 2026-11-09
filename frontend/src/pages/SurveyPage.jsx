@@ -3,8 +3,7 @@ import { useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MousePointer2, CheckCircle2, Loader2, AlertCircle, X } from 'lucide-react'
 import axios from 'axios'
-
-const BASE = import.meta.env.VITE_API_URL || ''
+import { API_BASE as BASE, resolveAssetUrl } from '../api/axios'
 
 export default function SurveyPage() {
   const { token } = useParams()
@@ -81,9 +80,7 @@ export default function SurveyPage() {
     </div>
   )
 
-  const screenshotUrl = survey.screenshot_url?.startsWith('http')
-    ? survey.screenshot_url
-    : `${BASE || 'http://localhost:3002'}${survey.screenshot_url}`
+  const screenshotUrl = resolveAssetUrl(survey.screenshot_url)
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -116,9 +113,20 @@ export default function SurveyPage() {
 
         <div className="relative rounded-xl overflow-hidden border border-white/10 cursor-crosshair select-none bg-gray-900"
           onClick={handleImgClick}>
-          <img ref={imgRef} src={screenshotUrl} alt="Website page"
-            className="w-full h-auto block" draggable={false}
-            style={{ pointerEvents: 'none' }} />
+          {screenshotUrl ? (
+            <img ref={imgRef} src={screenshotUrl} alt="Website page"
+              className="w-full h-auto block" draggable={false}
+              style={{ pointerEvents: 'none' }} />
+          ) : (
+            <div ref={imgRef} className="w-full min-h-[70vh] flex flex-col items-center justify-center gap-2 text-center p-6 text-gray-400 text-sm">
+              <p>A preview of this page isn't available.</p>
+              {survey.site_url && (
+                <a href={survey.site_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                  className="text-purple-300 underline">Open the page in a new tab</a>
+              )}
+              <p className="text-xs">Then click here where your eye went first.</p>
+            </div>
+          )}
 
           {/* Click dots overlay */}
           {clicks.map((c, i) => (

@@ -1,13 +1,24 @@
 {
-  "experimentalServices": {
-    "frontend": {
-      "entrypoint": "frontend",
-      "routePrefix": "/",
-      "framework": "vite"
-    },
-    "backend": {
-      "entrypoint": "backend",
-      "routePrefix": "/_/backend"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "PUPPETEER_SKIP_DOWNLOAD=1 npm ci --prefix frontend --include=dev --no-audit --no-fund && PUPPETEER_SKIP_DOWNLOAD=1 npm ci --prefix backend --omit=dev --no-audit --no-fund",
+  "buildCommand": "npm run build --prefix frontend",
+  "outputDirectory": "frontend/dist",
+  "regions": ["hnd1"],
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 300,
+      "includeFiles": "backend/node_modules/@sparticuz/chromium/bin/**"
     }
-  }
+  },
+  "rewrites": [
+    { "source": "/:prefix(auth|chat|heatmap|recommendations|onboarding|insights|health|uploads)/:path*", "destination": "/api/index?__p=/:prefix/:path*" },
+    { "source": "/((?!assets/|api/).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    }
+  ]
 }

@@ -1,61 +1,29 @@
-# Aura Design AI — Backend Dockerfile
-# Supports Puppeteer (headless Chrome) on Railway / Render / any container host
-#
-# Deploy: push this repo to Railway → it auto-detects Dockerfile → done.
-# Set all env vars from .env.example in Railway's Variables tab.
+# Backend-only image (use when the frontend is hosted separately, e.g. on Vercel).
+# For the recommended single-service deploy use the Dockerfile in the repo root.
+FROM node:22-bookworm-slim
 
-FROM node:20-slim
-
-# ── Install Chromium + dependencies for Puppeteer ──────────────────────────────
-RUN apt-get update && apt-get install -y \
-    chromium \
-    fonts-liberation \
-    libappindicator3-1 \
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libcups2 \
-    libdbus-1-3 \
-    libgdk-pixbuf2.0-0 \
-    libgtk-3-0 \
-    libnspr4 \
-    libnss3 \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libx11-6 \
-    libx11-xcb1 \
-    libxcb1 \
-    libxcomposite1 \
-    libxcursor1 \
-    libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxi6 \
-    libxrandr2 \
-    libxrender1 \
-    libxss1 \
-    libxtst6 \
-    wget \
-    --no-install-recommends \
+# Chromium + fonts for the Puppeteer screenshot scraper.
+# (The previous image listed libappindicator3-1, which no longer exists in
+#  Debian bookworm, so the build failed at apt-get.)
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      chromium fonts-liberation fonts-noto-color-emoji ca-certificates dumb-init \
  && rm -rf /var/lib/apt/lists/*
 
-# Tell Puppeteer to use system Chromium instead of downloading its own
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    PORT=3002 \
+    PUPPETEER_SKIP_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app
-
-# Install dependencies first (layer cache)
-COPY package*.json ./
-RUN npm ci --only=production
-
-# Copy source
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY . .
-
-# Ensure uploads dir exists (screenshots saved here at runtime)
-RUN mkdir -p uploads
+RUN mkdir -p uploads && chown -R node:node uploads
+USER node
 
 EXPOSE 3002
-
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3002)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "src/app.js"]

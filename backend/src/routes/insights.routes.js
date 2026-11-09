@@ -1,4 +1,3 @@
-require('dotenv').config();
 
 const express = require('express');
 const router  = express.Router();
@@ -6,39 +5,25 @@ const { authMiddleware } = require('../middleware/auth.middleware');
 const { supabase }       = require('../db/pool');
 const pool               = require('../db/pool');
 const { validatePublicUrl } = require('../utils/validateUrl');
-
-let _groqClient = null;
-function getGroqClient() {
-  if (!_groqClient) {
-    const Groq = require('groq-sdk');
-    _groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
-  }
-  return _groqClient;
-}
+const llm = require('../services/llm');
 
 function getLLM() {
   return {
-    async invoke(messages) {
-      const formatted = messages.map(m => ({
-        role: m.role || 'user',
-        content: typeof m.content === 'string' ? m.content : String(m.content ?? ''),
-      }));
-      const res = await getGroqClient().chat.completions.create({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-        messages: formatted,
-        temperature: 0.3,
-        max_tokens: 3000,
-      });
-      return { content: res.choices[0]?.message?.content ?? '' };
-    }
+    invoke: async (messages) => ({
+      content: await llm.complete(messages, { temperature: 0.3, maxTokens: 6000, reasoning: 'medium' }),
+    }),
   };
 }
+
 function safeJSON(text, fb = []) {
-  if (!text) return fb;
-  const s = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-  const a = s.indexOf('['), b = s.lastIndexOf(']');
-  try { return a !== -1 && b > a ? JSON.parse(s.substring(a, b + 1)) : JSON.parse(s); }
-  catch { return fb; }
+  const parsed = llm.parseJSON(text, fb);
+  if (Array.isArray(parsed)) return parsed;
+  // Some models wrap the array: { "cards": [...] } / { "insights": [...] }
+  if (parsed && typeof parsed === 'object') {
+    const arr = Object.values(parsed).find(Array.isArray);
+    if (arr) return arr;
+  }
+  return fb;
 }
 
 const INSIGHT_TYPES = [
@@ -174,7 +159,7 @@ router.post('/:id/send-to-chat', authMiddleware, async (req, res) => {
       title:        `Insight: ${insight.title.substring(0, 50)}`,
       status:       'active',
       site_url:     insight.site_url,
-      design_prefs: JSON.stringify({ insight_id: insight.id }),
+      design_prefs: ({ insight_id: insight.id }),
     }).select().single();
     if (sessErr) throw new Error(sessErr.message);
 
@@ -182,7 +167,7 @@ router.post('/:id/send-to-chat', authMiddleware, async (req, res) => {
     await supabase.from('chat_messages').insert({
       session_id: session.id, thread_id: threadId, role: 'user',
       content: msg, content_type: 'text',
-      metadata: JSON.stringify({ source: 'insight_card', insight_id: insight.id }),
+      metadata: ({ source: 'insight_card', insight_id: insight.id }),
     });
     await supabase.from('insight_cards').update({ status: 'actioned' }).eq('id', insight.id);
 

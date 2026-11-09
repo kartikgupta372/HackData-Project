@@ -1,0 +1,14 @@
+**/node_modules
+**/.env
+**/.env.*
+!**/.env.example
+**/uploads
+**/dist
+**/.git
+**/.vercel
+**/*.log
+backend/test
+README*.md
+start.bat
+start.ps1
+strip-comments.js

@@ -7,7 +7,7 @@
     "predev": "kill-port 5174",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview --port 5174"
   },
   "dependencies": {
     "@motionone/utils": "^10.18.0",

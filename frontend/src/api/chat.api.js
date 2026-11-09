@@ -1,6 +1,4 @@
-import api from './axios'
-
-const BASE = import.meta.env.VITE_API_URL || ''
+import api, { API_BASE as BASE } from './axios'
 
 export const chatApi = {
   createSession:  (siteUrl, domain, intent) => api.post('/chat/sessions', {
@@ -12,7 +10,6 @@ export const chatApi = {
   getSession:     (threadId)  => api.get(`/chat/sessions/${threadId}`),
   deleteSession:  (sessionId) => api.delete(`/chat/sessions/${sessionId}`),
   getResults:     (sessionId) => api.get(`/chat/sessions/${sessionId}/results`),
-  getState:       (threadId)  => api.get(`/chat/sessions/${threadId}/state`),
 
   streamMessage: async (payload, handlers) => {
     const { onStage, onToken, onMessage, onDone, onError, onUserMessage } = handlers
@@ -26,30 +23,40 @@ export const chatApi = {
         body:        JSON.stringify(payload),
       })
     } catch (err) {
-      onError?.('Network error — is the backend running?')
+      onError?.('Cannot reach the server. Check your connection and try again.', { retryable: true })
       return
     }
 
     if (!res.ok) {
+      if (res.status === 401) { window.location.assign('/login'); return }
       const body = await res.json().catch(() => ({ error: 'Request failed' }))
-      onError?.(body.error || `Server error ${res.status}`)
+      onError?.(body.error || `Server error ${res.status}`, { retryable: res.status >= 500 || res.status === 429 })
       return
     }
 
     const reader  = res.body.getReader()
     const decoder = new TextDecoder()
     let buffer    = ''
+    let eventType = null
+    let finished  = false
 
     while (true) {
-      const { done, value } = await reader.read()
+      let chunk
+      try {
+        chunk = await reader.read()
+      } catch {
+        onError?.('Connection lost while generating. Please try again.', { retryable: true })
+        return
+      }
+      const { done, value } = chunk
       if (done) break
 
       buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
+      const lines = buffer.split(/\r?\n/)
       buffer = lines.pop()
 
-      let eventType = null
       for (const line of lines) {
+        if (line === '') { eventType = null; continue }
         if (line.startsWith('event: ')) {
           eventType = line.slice(7).trim()
         } else if (line.startsWith('data: ') && eventType) {
@@ -61,13 +68,13 @@ export const chatApi = {
               case 'node_update':       onStage?.(data);              break
               case 'token':             onToken?.(data.token);        break
               case 'assistant_message': onMessage?.(data);            break
-              case 'done':              onDone?.(data);               break
-              case 'error':             onError?.(data.error, { retryable: data.retryable ?? false }); break
+              case 'done':              finished = true; onDone?.(data); break
+              case 'error':             finished = true; onError?.(data.error, { retryable: data.retryable ?? false }); break
             }
-          } catch {  }
-          eventType = null
+          } catch { /* ignore malformed event */ }
         }
       }
     }
+    if (!finished) onError?.('The response ended unexpectedly. Please try again.', { retryable: true })
   },
 }

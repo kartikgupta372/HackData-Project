@@ -1,9 +1,7 @@
-require('dotenv').config();
-
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../db/pool');
-const fs = require('fs');
-const path = require('path');
+const llm = require('../services/llm');
+const storage = require('../services/storage');
 
 const GRID_COLS = 20;
 const GRID_ROWS = 20;
@@ -13,25 +11,6 @@ const TIME_WEIGHTS = [
   { maxMs: 8000,    weight: 2.0 },
   { maxMs: Infinity, weight: 1.0 },
 ];
-
-let _groqClient = null;
-function getLLM() {
-  return {
-    async invoke(messages) {
-      if (!_groqClient) {
-        const Groq = require('groq-sdk');
-        _groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
-      }
-      const res = await _groqClient.chat.completions.create({
-        model: 'llama-3.2-90b-vision-preview',
-        messages,
-        temperature: 0,
-        max_tokens: 2000,
-      });
-      return { content: res.choices[0]?.message?.content ?? '' };
-    }
-  };
-}
 
 function getTimeWeight(ms) {
   for (const b of TIME_WEIGHTS) if (ms <= b.maxMs) return b.weight;
@@ -92,38 +71,27 @@ async function aggregateHeatmap(siteUrl, pageKey) {
   const desc = hotZones.slice(0,3).map(z => z.label+'@('+Math.round(z.x*100)+'%,'+Math.round(z.y*100)+'%) score:'+z.score).join('; ');
   const summaryText = sessionCount+' real sessions. '+afPct+'% above-fold. Hot zones: '+desc+'.';
   await pool.query(
-    'INSERT INTO heatmap_summaries (site_url,page_key,grid_data,hot_zones,attention_path,above_fold_pct,summary_text,confidence_level,session_count,predicted,last_updated) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,false,NOW()) ON CONFLICT ON CONSTRAINT heatmap_summaries_site_url_page_key_key DO UPDATE SET grid_data=$3,hot_zones=$4,attention_path=$5,above_fold_pct=$6,summary_text=$7,confidence_level=$8,session_count=$9,predicted=false,last_updated=NOW()',
+    'INSERT INTO heatmap_summaries (site_url,page_key,grid_data,hot_zones,attention_path,above_fold_pct,summary_text,confidence_level,session_count,predicted,last_updated) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,false,NOW()) ON CONFLICT (site_url, page_key) DO UPDATE SET grid_data=$3,hot_zones=$4,attention_path=$5,above_fold_pct=$6,summary_text=$7,confidence_level=$8,session_count=$9,predicted=false,last_updated=NOW()',
     [siteUrl, pageKey, JSON.stringify(normalized), JSON.stringify(hotZones), JSON.stringify(attentionPath.slice(0,50)), afPct, summaryText, sessionCount>=20?'high':sessionCount>=5?'medium':'low', sessionCount]
   );
   return { hasData: true, sessionCount, grid: normalized, hotZones, aboveFold: afPct, summaryText };
 }
 
 async function predictHeatmap(siteUrl, pageKey, screenshotPath, domSummary) {
-  let imageContent = null;
-  if (screenshotPath) {
-    const imgPath = screenshotPath.startsWith('/uploads/') ? path.join(process.cwd(), screenshotPath) : screenshotPath;
-    if (fs.existsSync(imgPath)) {
-      const b64 = fs.readFileSync(imgPath).toString('base64');
-      imageContent = { type: 'image_url', image_url: { url: 'data:image/png;base64,'+b64 } };
-    }
-  }
-  const prompt = 'Analyse this webpage. Predict where users look in FIRST 3s vs 3-8s.\nDOM: '+(domSummary??'N/A')+'\nReturn ONLY JSON:\n{"hot_zones":[{"x":0.0,"y":0.0,"w":0.1,"h":0.1,"score":0,"label":"above-fold","reason":""}],"above_fold_pct":0,"primary_attention":"","secondary_attention":"","design_laws_observed":[],"summary_text":""}';
-  const msgs = [
-    { role: 'system', content: 'You are an expert UI/UX eye-tracking prediction system.' },
-    {
-      role: 'user',
-      content: imageContent
-        ? [ { type: 'text', text: prompt }, imageContent ]
-        : prompt
-    }
-  ];
-  const result = await getLLM().invoke(msgs);
-  let parsed;
-  try { parsed = JSON.parse(result.content.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim()); } catch { return null; }
-  if (!parsed) return null;
+  // Only ever read screenshots this app stored itself (never arbitrary paths).
+  const image = await storage.readAsDataUrl(screenshotPath);
+  const prompt = 'Analyse this webpage. Predict where users look in FIRST 3s vs 3-8s.\nDOM: '+(domSummary??'N/A')+'\nCoordinates are fractions of the page (0-1). Return ONLY JSON:\n{"hot_zones":[{"x":0.0,"y":0.0,"w":0.1,"h":0.1,"score":0,"label":"above-fold","reason":""}],"above_fold_pct":0,"primary_attention":"","secondary_attention":"","design_laws_observed":[],"summary_text":""}';
+  const system = 'You are an expert UI/UX eye-tracking prediction system. Reply with JSON only.';
+  const text = image
+    ? await llm.vision(prompt, [image], { system })
+    : await llm.complete([{ role: 'system', content: system }, { role: 'user', content: prompt }], { temperature: 0, maxTokens: 2000 });
+  const parsed = llm.parseJSON(text, null);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  parsed.hot_zones = Array.isArray(parsed.hot_zones) ? parsed.hot_zones.slice(0, 10) : [];
+  parsed.above_fold_pct = Number.isFinite(Number(parsed.above_fold_pct)) ? Number(parsed.above_fold_pct) : 0;
   const summaryText = parsed.summary_text ?? 'AI-predicted: '+(parsed.primary_attention??'');
   await pool.query(
-    'INSERT INTO heatmap_summaries (site_url,page_key,hot_zones,above_fold_pct,summary_text,confidence_level,session_count,predicted,last_updated) VALUES ($1,$2,$3,$4,$5,\'none\',0,true,NOW()) ON CONFLICT ON CONSTRAINT heatmap_summaries_site_url_page_key_key DO UPDATE SET hot_zones=$3,above_fold_pct=$4,summary_text=$5,predicted=true,last_updated=NOW() WHERE heatmap_summaries.predicted=true OR heatmap_summaries.session_count=0',
+    'INSERT INTO heatmap_summaries (site_url,page_key,hot_zones,above_fold_pct,summary_text,confidence_level,session_count,predicted,last_updated) VALUES ($1,$2,$3,$4,$5,\'none\',0,true,NOW()) ON CONFLICT (site_url, page_key) DO UPDATE SET hot_zones=$3,above_fold_pct=$4,summary_text=$5,predicted=true,last_updated=NOW() WHERE heatmap_summaries.predicted=true OR heatmap_summaries.session_count=0',
     [siteUrl, pageKey, JSON.stringify(parsed.hot_zones), parsed.above_fold_pct, summaryText]
   );
   return { ...parsed, summaryText, predicted: true };
@@ -135,7 +103,8 @@ async function getHeatmap(siteUrl, pageKey) {
 }
 
 async function saveGazeSession(sessionData) {
-  const { siteUrl, pageKey, pageUrl, participantId, userId, deviceWidth, deviceHeight, webcamUsed, events } = sessionData;
+  const { siteUrl, pageKey, pageUrl, participantId, userId, deviceWidth, deviceHeight, webcamUsed } = sessionData;
+  const events = (Array.isArray(sessionData.events) ? sessionData.events : []).slice(0, 5000);
   const duration = events?.length > 0 ? (events[events.length-1].t ?? events[events.length-1].timestamp_ms ?? 0) : 0;
   const { rows } = await pool.query(
     'INSERT INTO gaze_sessions (site_url,page_key,page_url,user_id,participant_id,device_width,device_height,webcam_used,completed,session_duration_ms) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,true,$9) RETURNING id',

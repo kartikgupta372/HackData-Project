@@ -1,21 +1,16 @@
 const express    = require('express');
-const bcrypt     = require('bcrypt');
+const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
 const rateLimit  = require('express-rate-limit');
 const { OAuth2Client } = require('google-auth-library');
 const router     = express.Router();
 const { supabase } = require('../db/pool');
 const { authMiddleware } = require('../middleware/auth.middleware');
-
-if (!process.env.JWT_SECRET) {
-  console.error('❌ JWT_SECRET must be set in .env');
-  process.exit(1);
-}
+const { config } = require('../config/env');
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 15,
-  keyGenerator: (req) => req.ip,
   message: { success: false, error: 'Too many attempts. Please wait 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -23,120 +18,128 @@ const authLimiter = rateLimit({
 
 const COOKIE_OPTS = {
   httpOnly: true,
-  secure:   process.env.NODE_ENV === 'production',
-  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  secure:   config.cookieSecure,
+  sameSite: config.cookieSameSite,
+  path:     '/',
   maxAge:   7 * 24 * 60 * 60 * 1000,
 };
 
+// A real bcrypt hash of a random string. Comparing against it when the email
+// doesn't exist keeps login timing the same for known and unknown accounts.
+// (The previous placeholder wasn't a valid hash, so bcrypt threw and unknown
+// emails got a 500 instead of a 401.)
+const DUMMY_HASH = bcrypt.hashSync(`aura-timing-${Math.random()}`, 10);
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function signToken(userId) {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign({ userId }, config.jwtSecret, { expiresIn: '7d' });
+}
+
+function publicUser(user) {
+  if (!user) return null;
+  const { password_hash: _ignored, ...rest } = user;
+  return rest;
 }
 
 router.post('/register', authLimiter, async (req, res) => {
-  const { name, email, password } = req.body;
-  if (!name?.trim() || !email?.trim() || !password)
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+
+  if (!name || !email || !password)
     return res.status(400).json({ success: false, error: 'All fields required' });
+  if (name.length > 100)
+    return res.status(400).json({ success: false, error: 'Name is too long' });
+  if (!EMAIL_RE.test(email) || email.length > 255)
+    return res.status(400).json({ success: false, error: 'Invalid email format' });
   if (password.length < 8)
     return res.status(400).json({ success: false, error: 'Password must be 8+ characters' });
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-    return res.status(400).json({ success: false, error: 'Invalid email format' });
+  if (password.length > 72)
+    return res.status(400).json({ success: false, error: 'Password must be 72 characters or fewer' });
 
   try {
-    const { data: existing } = await supabase
-      .from('users').select('id').eq('email', email.toLowerCase().trim()).maybeSingle();
+    const { data: existing, error: lookupErr } = await supabase
+      .from('users').select('id').eq('email', email).maybeSingle();
+    if (lookupErr) throw new Error(lookupErr.message);
     if (existing)
       return res.status(409).json({ success: false, error: 'Email already registered' });
 
     const hash = await bcrypt.hash(password, 12);
     const { data: user, error } = await supabase
       .from('users')
-      .insert({ name: name.trim(), email: email.toLowerCase().trim(), password_hash: hash })
+      .insert({ name, email, password_hash: hash })
       .select('id, name, email, plan').single();
 
-    if (error) return res.status(500).json({ success: false, error: error.message });
+    if (error) {
+      if (error.code === '23505') return res.status(409).json({ success: false, error: 'Email already registered' });
+      throw new Error(error.message);
+    }
 
-    const token = signToken(user.id);
-    res.cookie('aura_token', token, COOKIE_OPTS);
+    res.cookie('aura_token', signToken(user.id), COOKIE_OPTS);
     return res.status(201).json({ success: true, data: { user } });
   } catch (err) {
     console.error('Register error:', err.message);
-    return res.status(500).json({ success: false, error: 'Registration failed' });
+    return res.status(500).json({ success: false, error: 'Registration failed. Please try again.' });
   }
 });
 
 router.post('/login', authLimiter, async (req, res) => {
-  const { email, password } = req.body;
-  if (!email?.trim() || !password)
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  if (!email || !password)
     return res.status(400).json({ success: false, error: 'Email and password required' });
 
   try {
     const { data: user, error } = await supabase
-      .from('users').select('*').eq('email', email.toLowerCase().trim()).maybeSingle();
+      .from('users').select('*').eq('email', email).maybeSingle();
+    if (error) throw new Error(error.message);
 
-    const dummyHash = '$2b$12$invalidhashpaddingtopreventimerattacksXXXXXXXXXXXXXXXXXX';
-    const hashToCheck = user?.password_hash ?? dummyHash;
-    const valid = await bcrypt.compare(password, hashToCheck);
+    const valid = await bcrypt.compare(password, user?.password_hash || DUMMY_HASH);
+    if (!user || !valid)
+      return res.status(401).json({ success: false, error: 'Invalid email or password' });
 
-    if (error || !user || !valid)
-      return res.status(401).json({ success: false, error: 'Invalid credentials' });
-
-    const token = signToken(user.id);
-    res.cookie('aura_token', token, COOKIE_OPTS);
-    const { password_hash: _, ...safeUser } = user;
-    return res.json({ success: true, data: { user: safeUser } });
+    res.cookie('aura_token', signToken(user.id), COOKIE_OPTS);
+    return res.json({ success: true, data: { user: publicUser(user) } });
   } catch (err) {
     console.error('Login error:', err.message);
-    return res.status(500).json({ success: false, error: 'Login failed' });
+    return res.status(500).json({ success: false, error: 'Login failed. Please try again.' });
   }
 });
 
 router.post('/google', authLimiter, async (req, res) => {
-  const { credential } = req.body;
-  if (!credential)
+  const { credential } = req.body ?? {};
+  if (!credential || typeof credential !== 'string')
     return res.status(400).json({ success: false, error: 'Google credential required' });
+  if (!config.googleClientId)
+    return res.status(503).json({ success: false, error: 'Google sign-in is not configured on the server' });
 
   try {
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const client = new OAuth2Client(clientId);
-    const ticket = await client.verifyIdToken({
-      idToken: credential,
-      audience: clientId,
-    });
+    const client = new OAuth2Client(config.googleClientId);
+    const ticket = await client.verifyIdToken({ idToken: credential, audience: config.googleClientId });
     const payload = ticket.getPayload();
-    const { email, name, sub: googleId, picture } = payload;
+    const email = payload?.email?.toLowerCase().trim();
+    if (!email || payload.email_verified === false)
+      return res.status(400).json({ success: false, error: 'Your Google account email is not verified' });
 
-    if (!email)
-      return res.status(400).json({ success: false, error: 'Unable to retrieve email from Google' });
-
-    let { data: user } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email.toLowerCase().trim())
-      .maybeSingle();
+    let { data: user, error: lookupErr } = await supabase
+      .from('users').select('*').eq('email', email).maybeSingle();
+    if (lookupErr) throw new Error(lookupErr.message);
 
     if (!user) {
-      const dummyHash = await bcrypt.hash(`google_oauth_${googleId}`, 12);
+      // Random unusable password — Google users sign in with Google only.
+      const unusable = await bcrypt.hash(`google:${payload.sub}:${Math.random()}:${Date.now()}`, 10);
       const { data: newUser, error } = await supabase
         .from('users')
-        .insert({
-          name: name || email.split('@')[0],
-          email: email.toLowerCase().trim(),
-          password_hash: dummyHash,
-        })
+        .insert({ name: (payload.name || email.split('@')[0]).substring(0, 100), email, password_hash: unusable })
         .select('id, name, email, plan')
         .single();
-
-      if (error)
-        return res.status(500).json({ success: false, error: error.message });
-
+      if (error) throw new Error(error.message);
       user = newUser;
     }
 
-    const token = signToken(user.id);
-    res.cookie('aura_token', token, COOKIE_OPTS);
-    const { password_hash: _, ...safeUser } = user;
-    return res.json({ success: true, data: { user: safeUser } });
+    res.cookie('aura_token', signToken(user.id), COOKIE_OPTS);
+    return res.json({ success: true, data: { user: publicUser(user) } });
   } catch (err) {
     console.error('Google auth error:', err.message);
     return res.status(401).json({ success: false, error: 'Google authentication failed' });
@@ -148,11 +151,8 @@ router.get('/me', authMiddleware, (req, res) => {
 });
 
 router.post('/logout', (req, res) => {
-  res.clearCookie('aura_token', {
-    httpOnly: true,
-    secure:   process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-  });
+  const { maxAge: _ignored, ...clearOpts } = COOKIE_OPTS;
+  res.clearCookie('aura_token', clearOpts);
   res.json({ success: true });
 });
 

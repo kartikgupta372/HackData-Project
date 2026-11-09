@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express    = require('express');
 const rateLimit  = require('express-rate-limit');
 const { authMiddleware } = require('../middleware/auth.middleware');
@@ -7,59 +6,41 @@ const pool       = require('../db/pool');
 const { supabase } = require('../db/pool');
 const { validatePublicUrl } = require('../utils/validateUrl');
 const scraper    = require('../tools/scraper.tool');
+const llm        = require('../services/llm');
+const { runInBackground } = require('../utils/background');
 
 const router = express.Router();
 
 const chatLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  keyGenerator: (req) => req.user?.id ?? req.ip,
+  keyGenerator: (req) => req.user?.id ?? rateLimit.ipKeyGenerator?.(req.ip) ?? req.ip,
   message: { success: false, error: 'Rate limit reached. Please wait a few minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
+const MAX_MESSAGE_CHARS = 8000;
 const activeRequestKeys = new Set();
 
-let _groq = null;
-function getGroq() {
-  if (_groq) return _groq;
-  if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY is not set.');
-  try {
-    const Groq = require('groq-sdk');
-    _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-    return _groq;
-  } catch { return null; }
-}
-
-async function streamWithGroq(systemPrompt, chatHistory, userMessage, emit) {
-  const groq = getGroq();
-  if (!groq) throw new Error('GROQ_API_KEY not set — add it to .env');
-
+async function streamChat(systemPrompt, chatHistory, userMessage, emit, signal) {
   const messages = [
     { role: 'system', content: systemPrompt },
-    ...chatHistory.map(m => ({ role: m.role === 'model' || m.role === 'assistant' ? 'assistant' : m.role, content: m.content || m.parts?.[0]?.text || '' })),
+    ...chatHistory,
     { role: 'user', content: userMessage },
   ];
+  return llm.stream(messages, { maxTokens: 4096, onToken: (token) => emit('token', { token }), signal });
+}
 
-  const stream = await groq.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
-    messages,
-    max_tokens: 4096,
-    stream: true,
-  });
-
-  let full = '';
-  for await (const chunk of stream) {
-    const token = chunk.choices[0]?.delta?.content ?? '';
-    if (token) { full += token; emit('token', { token }); }
-  }
-  return full;
+function parseJsonColumn(value) {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  try { return JSON.parse(value); } catch { return {}; }
 }
 
 async function loadOnboardingData(userId) {
   try {
-    const { data } = await supabase.from('users').select('onboarding_data').eq('id', userId).single();
+    const { data } = await supabase.from('users').select('onboarding_data').eq('id', userId).maybeSingle();
     return data?.onboarding_data ?? null;
   } catch { return null; }
 }
@@ -74,11 +55,11 @@ async function loadScrapedPages(sessionId) {
   } catch { return []; }
 }
 
-async function loadHeatmapContext(siteUrl, bundleId) {
+async function loadHeatmapContext(siteUrl, bundleId, userId) {
   try {
     if (bundleId) {
       const { data: bundle } = await supabase.from('heatmap_bundles')
-        .select('bundle_name, site_url, page_keys, bundle_data, ai_summary').eq('id', bundleId).single();
+        .select('bundle_name, site_url, page_keys, bundle_data, ai_summary').eq('id', bundleId).eq('user_id', userId).maybeSingle();
       if (bundle) return { type: 'bundle', bundle };
     }
     if (siteUrl) {
@@ -228,17 +209,18 @@ router.post('/sessions', authMiddleware, async (req, res) => {
   try {
     const ob = await loadOnboardingData(req.user.id);
     let finalUrl = siteUrl || (ob?.url ? validatePublicUrl(ob.url) : null);
+    const str = (v, n) => (typeof v === 'string' && v.trim() ? v.trim().substring(0, n) : null);
     const formData = {
-      domain:     domain     || ob?.domain     || null,
-      intent:     intent     || ob?.intent     || null,
-      other_info: other_info || ob?.other_info || null,
+      domain:     str(domain, 50)       || ob?.domain     || null,
+      intent:     str(intent, 50)       || ob?.intent     || null,
+      other_info: str(other_info, 1000) || ob?.other_info || null,
     };
     const session = await chatMemory.createSession(req.user.id, finalUrl ?? null, formData);
     res.status(201).json({ success: true, data: { session } });
     if (finalUrl) {
-      setImmediate(async () => {
+      runInBackground(`scrape:${session.id}`, async () => {
         try {
-          const pages = await scraper.scrapeWebsite(finalUrl, { maxPages: 5, fullPage: true });
+          const pages = await scraper.scrapeWebsite(finalUrl, { maxPages: process.env.VERCEL ? 3 : 5, fullPage: true });
           for (const [pageKey, pageData] of Object.entries(pages)) {
             await pool.query(
               `INSERT INTO scraped_pages
@@ -255,12 +237,15 @@ router.post('/sessions', authMiddleware, async (req, res) => {
         } catch (e) { console.warn(`[${session.id}] Scrape failed:`, e.message); }
       });
     }
-  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+  } catch (err) {
+    console.error('Create session error:', err.message);
+    if (!res.headersSent) res.status(500).json({ success: false, error: 'Could not create the session. Please try again.' });
+  }
 });
 
 router.get('/sessions', authMiddleware, async (req, res) => {
   try { res.json({ success:true, data:{ sessions: await chatMemory.listSessions(req.user.id) } }); }
-  catch (err) { res.status(500).json({ success:false, error:err.message }); }
+  catch (err) { console.error('List sessions error:', err.message); res.status(500).json({ success:false, error:'Could not load your chats.' }); }
 });
 
 router.get('/sessions/:threadId', authMiddleware, async (req, res) => {
@@ -285,50 +270,68 @@ router.get('/sessions/:sessionId/results', authMiddleware, async (req, res) => {
 });
 
 router.post('/message', authMiddleware, chatLimiter, async (req, res) => {
-  const { thread_id, session_id, message } = req.body;
-  if (!thread_id || !session_id || !message?.trim()) {
+  const { thread_id, session_id } = req.body ?? {};
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  if (!thread_id || !session_id || !message) {
     return res.status(400).json({ success:false, error:'thread_id, session_id, and message are required' });
   }
+  if (message.length > MAX_MESSAGE_CHARS) {
+    return res.status(413).json({ success:false, error:`Message is too long (max ${MAX_MESSAGE_CHARS} characters)` });
+  }
 
-  const requestKey = `${req.user.id || req.ip}:${thread_id}`;
+  const requestKey = `${req.user.id}:${thread_id}`;
   if (activeRequestKeys.has(requestKey)) {
     return res.status(429).json({ success:false, error:'Another message is already processing. Please wait.' });
   }
   activeRequestKeys.add(requestKey);
 
-  const session = await chatMemory.getSession(thread_id, req.user.id).catch(() => null);
-  if (!session) {
+  let session;
+  try {
+    session = await chatMemory.getSession(thread_id, req.user.id);
+  } catch (err) {
     activeRequestKeys.delete(requestKey);
-    return res.status(403).json({ success:false, error:'Session not found' });
+    console.error('Load session error:', err.message);
+    return res.status(503).json({ success:false, error:'Could not load this chat. Please try again.' });
+  }
+  if (!session || session.id !== session_id) {
+    activeRequestKeys.delete(requestKey);
+    return res.status(404).json({ success:false, error:'Session not found' });
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
+  const abort = new AbortController();
   const heartbeat = setInterval(() => { if (!res.writableEnded) res.write(':heartbeat\n\n'); }, 15000);
-  req.on('close', () => clearInterval(heartbeat));
+  // Stop generating (and paying for tokens) if the browser goes away.
+  res.on('close', () => { clearInterval(heartbeat); if (!res.writableFinished) abort.abort(); });
   const emit = (event, data) => { if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
 
   try {
-    await chatMemory.saveMessage(thread_id, session_id, 'user', message);
+    // Sessions created from a recommendation / insight / heatmap bundle already
+    // contain the opening user message. When the client asks the AI to answer
+    // it, don't store it a second time.
+    const existing = session.messages ?? [];
+    const last = existing[existing.length - 1];
+    const isReplay = last?.role === 'user' && String(last.content).trim() === message;
+    if (!isReplay) await chatMemory.saveMessage(thread_id, session_id, 'user', message);
     emit('user_message', { content: message });
 
-    const sessionFormData = typeof session.design_prefs === 'string'
-      ? JSON.parse(session.design_prefs || '{}')
-      : (session.design_prefs || {});
+    const sessionFormData = parseJsonColumn(session.design_prefs);
 
-    const [onboarding, scrapedPages, history] = await Promise.all([
+    const [onboarding, scrapedPages] = await Promise.all([
       loadOnboardingData(req.user.id),
       loadScrapedPages(session_id),
-      pool.query('SELECT role,content FROM chat_messages WHERE thread_id=$1 ORDER BY created_at ASC LIMIT 40', [thread_id])
-        .then(r => r.rows).catch(() => []),
     ]);
+    const history = existing
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .slice(-40);
 
     const siteUrl = session.site_url || onboarding?.url || null;
-    const heatmapContext = await loadHeatmapContext(siteUrl, sessionFormData?.heatmap_bundle_id ?? null);
+    const heatmapContext = await loadHeatmapContext(siteUrl, sessionFormData?.heatmap_bundle_id ?? null, req.user.id);
 
     if (siteUrl && scrapedPages.length === 0) {
       emit('stage', { stage:'scraping', message:`Scraping ${siteUrl} in background — answering based on knowledge for now...`, progress:10 });
@@ -338,38 +341,30 @@ router.post('/message', authMiddleware, chatLimiter, async (req, res) => {
 
     const systemPrompt = buildSystemPrompt(onboarding, scrapedPages, siteUrl, sessionFormData, heatmapContext);
 
-    const historyForContext = history.length > 0 && history[history.length - 1].role === 'user'
-      ? history.slice(0, -1) : history;
-    const chatHistory = historyForContext.map(msg => ({
-      role: msg.role === 'model' || msg.role === 'assistant' ? 'assistant' : 'user',
-      content: msg.content
+    // History up to (not including) the message we're answering now.
+    const priorHistory = isReplay ? history.slice(0, -1) : history;
+    const chatHistory = priorHistory.map(msg => ({
+      role: msg.role === 'assistant' ? 'assistant' : 'user',
+      content: String(msg.content ?? '').substring(0, 6000),
     }));
 
     emit('stage', { stage:'generating', message:'Generating response...', progress:40 });
 
-    const fullResponse = await streamWithGroq(systemPrompt, chatHistory, message, emit);
+    const fullResponse = await streamChat(systemPrompt, chatHistory, message, emit, abort.signal);
+    if (abort.signal.aborted) return;
 
     const cleanResponse = sanitizeChatResponse(fullResponse);
+    if (!cleanResponse) throw Object.assign(new Error('The AI returned an empty response'), { status: 502 });
     await chatMemory.saveMessage(thread_id, session_id, 'assistant', cleanResponse);
     await chatMemory.updateSessionStage(session_id, 'idle', siteUrl, onboarding?.domain ?? null);
 
     emit('assistant_message', { content: cleanResponse });
     emit('done', { thread_id });
-
   } catch (err) {
-    const rawMsg = err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || 'Unknown error';
-    console.error('Chat error:', rawMsg);
-    const lower = String(rawMsg).toLowerCase();
-    if (lower.includes('quota') || lower.includes('rate limit') || lower.includes('429')) {
-      emit('error', {
-        error: 'Groq quota limits reached. Wait a few minutes and try again.',
-        retryable: true,
-      });
-    } else if (err?.status === 401 || err?.response?.status === 401 || err?.response?.status === 403) {
-      emit('error', { error:'Groq API key unauthorized. Verify GROQ_API_KEY in .env.' });
-    } else {
-      emit('error', { error: rawMsg });
-    }
+    if (abort.signal.aborted) return;
+    console.error('Chat error:', err?.message || err);
+    const { message: friendly, retryable } = llm.describeError(err);
+    emit('error', { error: friendly, retryable });
   } finally {
     activeRequestKeys.delete(requestKey);
     clearInterval(heartbeat);
