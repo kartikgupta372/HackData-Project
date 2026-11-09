@@ -2,6 +2,22 @@ ALTER TABLE users
   ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN DEFAULT false,
   ADD COLUMN IF NOT EXISTS onboarding_data      JSONB   DEFAULT NULL;
 
+-- Rename the legacy updated_at column first (only when last_updated doesn't exist yet),
+-- then add any missing columns. The previous order added last_updated first and then
+-- tried to rename updated_at onto it, which failed and aborted the whole script.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'heatmap_summaries' AND column_name = 'updated_at'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'heatmap_summaries' AND column_name = 'last_updated'
+  ) THEN
+    ALTER TABLE heatmap_summaries RENAME COLUMN updated_at TO last_updated;
+  END IF;
+END $$;
+
 ALTER TABLE heatmap_summaries
   ADD COLUMN IF NOT EXISTS grid_data       JSONB,
   ADD COLUMN IF NOT EXISTS hot_zones       JSONB,
@@ -9,16 +25,6 @@ ALTER TABLE heatmap_summaries
   ADD COLUMN IF NOT EXISTS above_fold_pct  FLOAT   DEFAULT 0,
   ADD COLUMN IF NOT EXISTS predicted       BOOLEAN DEFAULT false,
   ADD COLUMN IF NOT EXISTS last_updated    TIMESTAMPTZ DEFAULT NOW();
-
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_name='heatmap_summaries' AND column_name='updated_at'
-  ) THEN
-    ALTER TABLE heatmap_summaries RENAME COLUMN updated_at TO last_updated;
-  END IF;
-END $$;
 
 CREATE TABLE IF NOT EXISTS gaze_sessions (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),

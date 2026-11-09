@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { resolveAssetUrl } from '../../api/axios'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -290,7 +291,7 @@ function SurveyDetail({ survey, results, onCopy, copied, onCompute, computing, o
             {survey.screenshot_url ? (
               <div className="relative inline-block w-full">
                 <img
-                  src={survey.screenshot_url.startsWith('http') ? survey.screenshot_url : `http://localhost:3002${survey.screenshot_url}`}
+                  src={resolveAssetUrl(survey.screenshot_url)}
                   alt="Page screenshot" className="w-full" />
                 {hm?.grid_data && (
                   <div className="absolute inset-0 pointer-events-none"
@@ -482,7 +483,7 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
           {step === 'confirm' && <>
             <div className="rounded-lg border border-aura-border overflow-hidden bg-aura-elevated text-center py-3">
               {screenshotData?.screenshot_url
-                ? <img src={screenshotData.screenshot_url} alt="Preview" className="max-h-48 mx-auto object-contain rounded" />
+                ? <img src={resolveAssetUrl(screenshotData.screenshot_url)} alt="Preview" className="max-h-48 mx-auto object-contain rounded" />
                 : <p className="text-xs text-aura-faint py-8">Screenshot captured ({screenshotData?.element_count} elements)</p>}
               {screenshotData?.screenshot_url && screenshotData?.full_page_captured === false && (
                 <p className="text-[10px] text-aura-faint mt-2">Viewport only — full page was too long or timed out.</p>

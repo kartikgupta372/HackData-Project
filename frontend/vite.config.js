@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -6,7 +6,13 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  // Where the dev server forwards API calls. Matches backend/.env PORT.
+  const target = env.VITE_DEV_API_TARGET || 'http://localhost:3002'
+  const proxied = ['/auth', '/chat', '/heatmap', '/recommendations', '/uploads', '/health', '/onboarding', '/insights']
+
+  return {
   plugins: [react()],
   resolve: {
     alias: {
@@ -19,19 +25,12 @@ export default defineConfig({
   server: {
     port: 5174,
     strictPort: true,
-    proxy: {
-      '/auth':            { target: 'http://localhost:3002', changeOrigin: true, secure: false },
-      '/chat':            { target: 'http://localhost:3002', changeOrigin: true, secure: false },
-      '/heatmap':         { target: 'http://localhost:3002', changeOrigin: true, secure: false },
-      '/recommendations': { target: 'http://localhost:3002', changeOrigin: true, secure: false },
-      '/uploads':         { target: 'http://localhost:3002', changeOrigin: true, secure: false },
-      '/health':          { target: 'http://localhost:3002', changeOrigin: true, secure: false },
-      '/onboarding':      { target: 'http://localhost:3002', changeOrigin: true, secure: false },
-      '/insights':         { target: 'http://localhost:3002', changeOrigin: true, secure: false },
-    },
+    proxy: Object.fromEntries(proxied.map(p => [p, { target, changeOrigin: true, secure: false }])),
   },
   build: {
-    sourcemap: true,
+    // Don't publish source maps (they expose your full source code).
+    sourcemap: false,
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
         manualChunks: {
@@ -43,4 +42,5 @@ export default defineConfig({
       },
     },
   },
+}
 })

@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express = require('express');
 const router  = express.Router();
 const { authMiddleware } = require('../middleware/auth.middleware');
@@ -6,45 +5,27 @@ const rec     = require('../tools/recommendation.tool');
 const { supabase } = require('../db/pool');
 const { searchBenchmarks } = require('../tools/vectorSearch.tool');
 const { validatePublicUrl } = require('../utils/validateUrl');
+const llm = require('../services/llm');
 
 const _cardCache = new Map();
 
-let _groqClient = null;
-function getGroqClient() {
-  if (!_groqClient) {
-    const Groq = require('groq-sdk');
-    _groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
-  }
-  return _groqClient;
-}
-
 function getLLM() {
   return {
-    async invoke(messages) {
-      const formatted = messages.map(m => ({
-        role: m.role || 'user',
-        content: typeof m.content === 'string' ? m.content : String(m.content ?? ''),
-      }));
-      const res = await getGroqClient().chat.completions.create({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-        messages: formatted,
-        temperature: 0.3,
-        max_tokens: 4096,
-      });
-      return { content: res.choices[0]?.message?.content ?? '' };
-    }
+    invoke: async (messages) => ({
+      content: await llm.complete(messages, { temperature: 0.3, maxTokens: 6000, reasoning: 'medium' }),
+    }),
   };
 }
 
 function safeJSON(text, fb = []) {
-  if (!text) return fb;
-  let clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-  const a = clean.indexOf('['), b = clean.lastIndexOf(']');
-  if (a !== -1 && b > a) clean = clean.substring(a, b + 1);
-  try { return JSON.parse(clean); } catch (e) {
-    console.error('safeJSON failed:', e.message, '\nRaw:', text.substring(0, 200));
-    return fb;
+  const parsed = llm.parseJSON(text, fb);
+  if (Array.isArray(parsed)) return parsed;
+  // Some models wrap the array: { "cards": [...] } / { "insights": [...] }
+  if (parsed && typeof parsed === 'object') {
+    const arr = Object.values(parsed).find(Array.isArray);
+    if (arr) return arr;
   }
+  return fb;
 }
 
 const DOMAIN_TO_TYPE = {
@@ -64,7 +45,7 @@ const INTENT_LABELS = {
 
 async function loadOnboarding(userId) {
   try {
-    const { data } = await supabase.from('users').select('onboarding_data').eq('id', userId).single();
+    const { data } = await supabase.from('users').select('onboarding_data').eq('id', userId).maybeSingle();
     return data?.onboarding_data ?? null;
   } catch { return null; }
 }
@@ -74,7 +55,7 @@ router.get('/cards', authMiddleware, async (req, res) => {
     const { status, siteUrl, limit = 50 } = req.query;
     const PRIORITY = { high:1, medium:2, low:3 };
     let q = supabase.from('recommendation_cards').select('*')
-      .eq('user_id', req.user.id).order('created_at', { ascending: false }).limit(parseInt(limit));
+      .eq('user_id', req.user.id).order('created_at', { ascending: false }).limit(Math.min(parseInt(limit, 10) || 50, 200));
     if (status) q = q.eq('status', status);
     if (siteUrl) q = q.eq('site_url', siteUrl);
     const { data, error } = await q;
@@ -86,8 +67,16 @@ router.get('/cards', authMiddleware, async (req, res) => {
 
 router.post('/track', authMiddleware, async (req, res) => {
   try {
-    const { siteUrl, pageKey, actionType, actionData } = req.body;
-    await rec.trackInteraction(req.user.id, req.body.sessionId, { siteUrl, pageKey, actionType, actionData });
+    const { siteUrl, pageKey, actionType, actionData, sessionId } = req.body ?? {};
+    const ALLOWED = ['applied_fix', 'dismissed_fix', 'requested_style', 'liked_benchmark', 'copied_code', 'viewed_card'];
+    if (!ALLOWED.includes(actionType)) return res.status(400).json({ success: false, error: 'Unknown actionType' });
+    const UUID = /^[0-9a-f-]{36}$/i;
+    await rec.trackInteraction(req.user.id, UUID.test(sessionId ?? '') ? sessionId : null, {
+      siteUrl: typeof siteUrl === 'string' ? siteUrl.substring(0, 2048) : null,
+      pageKey: typeof pageKey === 'string' ? pageKey.substring(0, 500) : null,
+      actionType,
+      actionData: actionData && typeof actionData === 'object' ? actionData : {},
+    });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
@@ -216,7 +205,7 @@ Return ONLY a valid JSON array. No markdown, no text outside the array.` },
         impact_level:   c.impact_level ?? 'medium',
         status:         'pending',
       };
-      if (sessionId) row.session_id = sessionId;
+      if (typeof sessionId === 'string' && /^[0-9a-f-]{36}$/i.test(sessionId)) row.session_id = sessionId;
       return row;
     });
 
@@ -280,7 +269,7 @@ router.post('/cards/:cardId/action', authMiddleware, async (req, res) => {
         status:       'active',
         site_url:     card.site_url,
         site_type:    card.site_type,
-        design_prefs: JSON.stringify({
+        design_prefs: ({
           implementation_task: {
             card_id: card.id, title: card.title, change_type: card.change_type,
             element_target: card.element_target, after_snippet: card.after_snippet,
@@ -298,20 +287,20 @@ router.post('/cards/:cardId/action', authMiddleware, async (req, res) => {
         role:         'user',
         content:      implPrompt,
         content_type: 'text',
-        metadata:     JSON.stringify({ source: 'recommendation_approve', card_id: card.id }),
+        metadata: ({ source: 'recommendation_approve', card_id: card.id }),
       });
 
       await rec.trackInteraction(req.user.id, chatSessionId, {
         siteUrl: card.site_url, pageKey: card.page_key,
         actionType: 'applied_fix',
         actionData: { law: card.design_law, style: card.change_type, title: card.title },
-      });
+      }).catch(err => console.warn('Track interaction failed (non-fatal):', err.message));
     } else {
       await rec.trackInteraction(req.user.id, null, {
         siteUrl: card.site_url, pageKey: card.page_key,
         actionType: 'dismissed_fix',
         actionData: { law: card.design_law, title: card.title },
-      });
+      }).catch(err => console.warn('Track interaction failed (non-fatal):', err.message));
     }
 
     await supabase.from('recommendation_cards').update({
@@ -351,7 +340,7 @@ router.post('/cards/:cardId/discuss', authMiddleware, async (req, res) => {
       title:        `Discuss: ${card.title.substring(0, 50)}`,
       status:       'active',
       site_url:     card.site_url,
-      design_prefs: JSON.stringify({
+      design_prefs: ({
         discussion_card: {
           id: card.id, title: card.title, description: card.description,
           element_target: card.element_target, design_law: card.design_law,
@@ -376,7 +365,7 @@ router.post('/cards/:cardId/discuss', authMiddleware, async (req, res) => {
     await supabase.from('chat_messages').insert({
       session_id: session.id, thread_id: threadId, role: 'user',
       content: discussMsg, content_type: 'text',
-      metadata: JSON.stringify({ source: 'recommendation_discuss', card_id: card.id }),
+      metadata: ({ source: 'recommendation_discuss', card_id: card.id }),
     });
 
     res.json({ success: true, data: { session, thread_id: threadId } });
@@ -386,8 +375,9 @@ router.post('/cards/:cardId/discuss', authMiddleware, async (req, res) => {
 });
 
 router.post('/vibe-prompt', authMiddleware, async (req, res) => {
-  const { cardIds, siteUrl } = req.body;
-  if (!cardIds?.length) return res.status(400).json({ success: false, error: 'cardIds array required' });
+  const { siteUrl } = req.body ?? {};
+  const cardIds = Array.isArray(req.body?.cardIds) ? req.body.cardIds.filter(id => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 50) : [];
+  if (!cardIds.length) return res.status(400).json({ success: false, error: 'cardIds array required' });
 
   try {
     const { data: cards, error } = await supabase.from('recommendation_cards')

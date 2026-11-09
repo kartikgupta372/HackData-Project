@@ -168,20 +168,32 @@ export default function ChatView() {
   // Every new chat session must start with the URL/form step — show modal when there is no session
   const showSessionModal = !activeSessionId || showUrlModal
 
+  // Latest send function, usable from effects declared before it.
+  const sendRef = useRef(null)
+  const autoAnswered = useRef(new Set())
+
   // Load existing messages when switching sessions (e.g. from Recommendations approve)
   useEffect(() => {
     if (!activeSessionId || !activeThreadId) return
-    chatApi.getSession(activeThreadId)
+    const threadId = activeThreadId
+    chatApi.getSession(threadId)
       .then(res => {
+        const state = useChatStore.getState()
+        if (state.activeThreadId !== threadId) return // user switched away meanwhile
         const msgs = res.data?.data?.session?.messages ?? []
-        if (msgs.length > 0) {
-          setMessages(msgs.map(m => ({
-            id: m.id ?? Math.random(),
-            role: m.role,
-            content: m.content,
-            type: m.content_type ?? 'text',
-            timestamp: m.created_at,
-          })))
+        if (msgs.length === 0 || state.isStreaming) return
+        setMessages(msgs.map(m => ({
+          id: m.id ?? Math.random(),
+          role: m.role,
+          content: m.content,
+          type: m.content_type ?? 'text',
+          timestamp: m.created_at,
+        })))
+        // Sessions opened from a recommendation, insight or heatmap bundle start
+        // with a prepared question and no answer yet — ask the AI right away.
+        if (msgs.length === 1 && msgs[0].role === 'user' && !autoAnswered.current.has(threadId)) {
+          autoAnswered.current.add(threadId)
+          sendRef.current?.(msgs[0].content, { replay: true })
         }
       })
       .catch(() => {})
@@ -193,38 +205,6 @@ export default function ChatView() {
     window.addEventListener('aura:request-new-session', handler)
     return () => window.removeEventListener('aura:request-new-session', handler)
   }, [])
-
-  // Auto-send: when a recommendation card is approved, load & immediately send the first message
-  useEffect(() => {
-    const handler = async (e) => {
-      const { sessionId, threadId } = e.detail ?? {}
-      if (!sessionId || !threadId) return
-      // Wait for session to load, then auto-trigger the implementation message
-      setTimeout(async () => {
-        try {
-          const res = await chatApi.getSession(threadId)
-          const msgs = res.data?.data?.session?.messages ?? []
-          const firstUserMsg = msgs.find(m => m.role === 'user')
-          if (firstUserMsg?.content) {
-            // Pre-populate the message in store so it shows, then send it
-            useChatStore.getState().startStreaming()
-            await chatApi.streamMessage(
-              { thread_id: threadId, session_id: sessionId, message: firstUserMsg.content },
-              {
-                onStage:   (d) => useChatStore.getState().setStage(d),
-                onToken:   (t) => useChatStore.getState().appendToken(t),
-                onMessage: () => {},
-                onDone:    () => { useChatStore.getState().finishStreaming(); useChatStore.getState().setStage(null) },
-                onError:   () => { useChatStore.getState().finishStreaming(); useChatStore.getState().setStage(null) },
-              }
-            )
-          }
-        } catch {}
-      }, 600)
-    }
-    window.addEventListener('aura:auto-send-session', handler)
-    return () => window.removeEventListener('aura:auto-send-session', handler)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Create session with optional URL + form context
   const createSessionWithUrl = useCallback(async (formData) => {
@@ -266,8 +246,8 @@ export default function ChatView() {
     }
   }, [])
 
-  const handleSend = useCallback(async (text) => {
-    if (!text.trim() || isStreaming) return
+  const handleSend = useCallback(async (text, { replay = false } = {}) => {
+    if (!text?.trim() || useChatStore.getState().isStreaming) return
 
     // No session yet -> open URL modal first (user picks URL or skips)
     if (!activeSessionId) {
@@ -275,7 +255,7 @@ export default function ChatView() {
       return
     }
 
-    addMessage({ role: 'user', content: text, type: 'text', timestamp: new Date().toISOString() })
+    if (!replay) addMessage({ role: 'user', content: text, type: 'text', timestamp: new Date().toISOString() })
     startStreaming()
 
     await chatApi.streamMessage(
@@ -305,7 +285,9 @@ export default function ChatView() {
         },
       }
     )
-  }, [isStreaming, activeSessionId, activeThreadId, startStreaming, appendToken, finishStreaming, setStage, addMessage])
+  }, [activeSessionId, activeThreadId, startStreaming, appendToken, finishStreaming, setStage, addMessage])
+
+  sendRef.current = handleSend
 
   // BUG 8 FIX: Listen for auto-send-message — placed AFTER handleSend definition to avoid
   // "Cannot access before initialization" error (useCallback is not hoisted)
@@ -338,7 +320,7 @@ export default function ChatView() {
           {/* Messages area */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {hasContent
-              ? <MessageList onRetry={handleSend} />
+              ? <MessageList onRetry={(text) => handleSend(text, { replay: true })} />
               : <EmptyState onSend={handleSend} onNew={() => setShowUrlModal(true)} />
             }
           </div>

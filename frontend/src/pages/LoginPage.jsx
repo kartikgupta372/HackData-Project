@@ -24,7 +24,7 @@ export default function LoginPage() {
       await login(email, password)
       nav('/app', { replace: true })
     } catch (err) {
-      setError(err.response?.data?.error || 'Invalid credentials')
+      setError(err.response?.data?.error || err.message || 'Sign in failed')
     } finally {
       setLoading(false)
     }
@@ -92,11 +92,13 @@ export default function LoginPage() {
             </Button>
           </form>
 
+          {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
           <div className="flex items-center gap-3 my-4">
             <div className="flex-1 h-px bg-aura-border" />
             <span className="text-xs text-aura-faint">OR</span>
             <div className="flex-1 h-px bg-aura-border" />
           </div>
+          )}
 
           <div className="flex justify-center">
             <GoogleIdentityButton
