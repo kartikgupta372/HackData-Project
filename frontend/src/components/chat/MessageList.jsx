@@ -15,7 +15,7 @@ export default function MessageList({ onRetry }) {
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-6">
-      <div className="max-w-2xl mx-auto flex flex-col gap-6">
+      <div className="max-w-3xl mx-auto flex flex-col gap-6">
         <AnimatePresence initial={false}>
           {messages.map(msg => (
             <motion.div
@@ -56,7 +56,7 @@ function TypingIndicator() {
   return (
     <div className="flex items-start gap-3">
       <AuraAvatar />
-      <div className="flex items-center gap-1 h-8 px-3 py-2 rounded-xl rounded-tl-sm bg-aura-card border border-aura-line">
+      <div className="flex items-center gap-1.5 h-9 px-4 rounded-2xl rounded-tl-md bg-aura-card border border-aura-border">
         {[0,1,2].map(i => (
           <div key={i} className="w-1.5 h-1.5 rounded-full bg-aura-accent typing-dot" style={{animationDelay:`${i*0.2}s`}} />
         ))}
@@ -67,8 +67,8 @@ function TypingIndicator() {
 
 export function AuraAvatar() {
   return (
-    <div className="w-7 h-7 rounded-full bg-aura-accent/20 border border-aura-accent/30 flex items-center justify-center shrink-0 mt-0.5">
-      <div className="w-2 h-2 rounded-full bg-aura-accent" />
+    <div className="w-8 h-8 rounded-xl bg-aura-accent flex items-center justify-center shrink-0 font-display font-bold text-sm text-aura-on-accent" aria-hidden="true">
+      A
     </div>
   )
 }

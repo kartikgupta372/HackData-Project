@@ -2,6 +2,74 @@
 @tailwind components;
 @tailwind utilities;
 
+
+/* ── Colour tokens (RGB triplets so Tailwind opacity modifiers keep working) ──
+   :root keeps the original violet look used by the landing and sign-in pages.
+   .theme-app is the in-app design language: graphite surfaces plus one signature
+   colour per tool, set through data-feature on the app shell. */
+:root {
+  --aura-void: 6 6 8;
+  --aura-base: 12 12 16;
+  --aura-surface: 17 17 22;
+  --aura-card: 24 24 31;
+  --aura-elevated: 31 31 40;
+  --aura-border: 42 42 53;
+  --aura-line: 30 30 38;
+  --aura-accent: 124 92 252;
+  --aura-accent-dim: 90 63 212;
+  --aura-accent-glow: 157 127 255;
+  --aura-on-accent: 255 255 255;
+  --aura-text: 232 232 240;
+  --aura-muted: 107 107 128;
+  --aura-faint: 58 58 72;
+  --aura-success: 52 211 153;
+  --aura-warn: 251 191 36;
+  --aura-error: 248 113 113;
+  --font-display: 'Syne', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+}
+
+.theme-app {
+  --aura-void: 10 12 16;
+  --aura-base: 15 18 24;
+  --aura-surface: 20 25 34;
+  --aura-card: 26 32 43;
+  --aura-elevated: 34 42 55;
+  --aura-border: 49 59 77;
+  --aura-line: 35 43 58;
+  --aura-text: 238 241 246;
+  --aura-muted: 154 165 184;
+  --aura-faint: 112 124 146;
+  --aura-success: 61 214 140;
+  --aura-warn: 255 176 32;
+  --aura-error: 255 107 107;
+  --aura-on-accent: 10 12 16;
+  --font-display: 'Bricolage Grotesque', 'DM Sans', sans-serif;
+  --font-body: 'Instrument Sans', 'DM Sans', sans-serif;
+
+  /* default = chat */
+  --aura-accent: 124 140 255;
+  --aura-accent-dim: 98 112 240;
+  --aura-accent-glow: 163 174 255;
+
+  font-family: var(--font-body);
+  color: rgb(var(--aura-text));
+}
+.theme-app[data-feature='recommendations'] { --aura-accent: 255 176 32;  --aura-accent-dim: 230 152 8;  --aura-accent-glow: 255 205 98; }
+.theme-app[data-feature='heatmap']         { --aura-accent: 255 111 97;  --aura-accent-dim: 235 88 76;  --aura-accent-glow: 255 156 146; }
+.theme-app[data-feature='insights']        { --aura-accent: 45 212 191;  --aura-accent-dim: 24 190 170; --aura-accent-glow: 104 236 217; }
+
+.theme-app .font-display { font-family: var(--font-display); letter-spacing: -0.01em; }
+.theme-app :focus-visible { outline: 2px solid rgb(var(--aura-accent)); outline-offset: 2px; }
+.theme-app ::selection { background: rgb(var(--aura-accent) / 0.3); }
+.theme-app ::-webkit-scrollbar { width: 8px; height: 8px; }
+.theme-app ::-webkit-scrollbar-thumb { background: rgb(var(--aura-border)); border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }
+.theme-app ::-webkit-scrollbar-thumb:hover { background: rgb(var(--aura-faint)); background-clip: content-box; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+
 @layer base {
   *, *::before, *::after { box-sizing: border-box; }
 
@@ -57,7 +125,7 @@
   }
 
   .aura-glow {
-    box-shadow: 0 0 0 1px rgba(124,92,252,0.3), 0 0 24px rgba(124,92,252,0.15);
+    box-shadow: 0 0 0 1px rgb(var(--aura-accent) / 0.3), 0 0 24px rgb(var(--aura-accent) / 0.15);
   }
 
   .noise-bg::before {
@@ -85,7 +153,7 @@
     content: '▋';
     display: inline-block;
     animation: cursorBlink 1s step-end infinite;
-    color: #7c5cfc;
+    color: rgb(var(--aura-accent));
     margin-left: 1px;
   }
 
@@ -95,7 +163,7 @@
   }
 
   .progress-glow {
-    box-shadow: 0 0 8px rgba(124,92,252,0.6), 0 0 2px rgba(124,92,252,1);
+    box-shadow: 0 0 8px rgb(var(--aura-accent) / 0.55);
   }
 }
 
@@ -117,64 +185,67 @@
 
 .prose-aura {
   line-height: 1.7;
-  color: #d4d4e0;
+  color: rgb(var(--aura-text) / 0.92);
 }
 .prose-aura h1, .prose-aura h2, .prose-aura h3 {
-  font-family: 'Syne', sans-serif;
-  font-weight: 600;
-  color: #e8e8f0;
-  margin-top: 1.5em;
-  margin-bottom: 0.5em;
+  font-family: var(--font-display);
+  font-weight: 650;
+  color: rgb(var(--aura-text));
+  margin-top: 1.4em;
+  margin-bottom: 0.45em;
+  line-height: 1.25;
 }
-.prose-aura h1 { font-size: 1.4em; }
-.prose-aura h2 { font-size: 1.2em; }
-.prose-aura h3 { font-size: 1.05em; }
-.prose-aura p  { margin: 0.75em 0; }
-.prose-aura ul, .prose-aura ol { padding-left: 1.4em; margin: 0.75em 0; }
-.prose-aura li { margin: 0.3em 0; }
-.prose-aura strong { color: #e8e8f0; font-weight: 600; }
-.prose-aura em { color: #a8a8c0; font-style: italic; }
+.prose-aura h1 { font-size: 1.35em; }
+.prose-aura h2 { font-size: 1.18em; padding-bottom: 0.3em; border-bottom: 1px solid rgb(var(--aura-line)); }
+.prose-aura h3 { font-size: 1.05em; color: rgb(var(--aura-accent-glow)); }
+.prose-aura > :first-child { margin-top: 0; }
+.prose-aura p  { margin: 0.7em 0; }
+.prose-aura ul, .prose-aura ol { padding-left: 1.3em; margin: 0.7em 0; }
+.prose-aura ul { list-style: none; }
+.prose-aura ul > li { position: relative; }
+.prose-aura ul > li::before { content: ''; position: absolute; left: -1em; top: 0.72em; width: 0.4em; height: 0.4em; border-radius: 2px; background: rgb(var(--aura-accent)); }
+.prose-aura ol > li::marker { color: rgb(var(--aura-accent)); font-weight: 600; }
+.prose-aura li { margin: 0.35em 0; }
+.prose-aura strong { color: rgb(var(--aura-text)); font-weight: 650; }
+.prose-aura em { color: rgb(var(--aura-muted)); font-style: italic; }
+.prose-aura a { color: rgb(var(--aura-accent-glow)); text-decoration: underline; text-underline-offset: 3px; }
 .prose-aura code {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.82em;
-  background: rgba(124,92,252,0.1);
-  border: 1px solid rgba(124,92,252,0.2);
-  padding: 0.15em 0.4em;
-  border-radius: 3px;
-  color: #9d7fff;
+  font-size: 0.84em;
+  background: rgb(var(--aura-accent) / 0.12);
+  border: 1px solid rgb(var(--aura-accent) / 0.28);
+  padding: 0.12em 0.4em;
+  border-radius: 5px;
+  color: rgb(var(--aura-accent-glow));
 }
 .prose-aura pre { margin: 1em 0; }
 .prose-aura pre code { background: none; border: none; padding: 0; color: inherit; }
 .prose-aura blockquote {
-  border-left: 2px solid #7c5cfc;
-  padding-left: 1em;
+  border-left: 3px solid rgb(var(--aura-accent));
+  background: rgb(var(--aura-accent) / 0.07);
+  padding: 0.6em 1em;
+  border-radius: 0 8px 8px 0;
   margin: 1em 0;
-  color: #8888a0;
-  font-style: italic;
+  color: rgb(var(--aura-text) / 0.85);
 }
-.prose-aura hr {
-  border: none;
-  border-top: 1px solid #2a2a35;
-  margin: 1.5em 0;
-}
+.prose-aura hr { border: none; border-top: 1px solid rgb(var(--aura-border)); margin: 1.5em 0; }
 .prose-aura table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.9em;
   margin: 1em 0;
+  border: 1px solid rgb(var(--aura-border));
+  border-radius: 10px;
+  overflow: hidden;
 }
-.prose-aura th, .prose-aura td {
-  padding: 0.5em 0.75em;
-  border: 1px solid #2a2a35;
-  text-align: left;
-}
+.prose-aura th, .prose-aura td { padding: 0.55em 0.8em; border-bottom: 1px solid rgb(var(--aura-line)); text-align: left; }
+.prose-aura tr:last-child td { border-bottom: none; }
 .prose-aura th {
-  background: #18181f;
-  font-family: 'Syne', sans-serif;
+  background: rgb(var(--aura-elevated));
+  font-family: var(--font-display);
   font-weight: 600;
-  font-size: 0.85em;
-  color: #9d7fff;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 0.88em;
+  color: rgb(var(--aura-text));
 }
-.prose-aura tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+.prose-aura tr:nth-child(even) td { background: rgb(var(--aura-text) / 0.025); }

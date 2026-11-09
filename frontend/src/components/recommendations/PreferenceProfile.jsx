@@ -12,7 +12,7 @@ export default function PreferenceProfile({ profile }) {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <p className="text-[10px] font-mono uppercase tracking-widest text-aura-faint mb-2">Preferred Styles</p>
+        <p className="text-xs font-semibold text-aura-faint mb-2">Preferred Styles</p>
         <div className="flex flex-wrap gap-1.5">
           {profile.preferred_styles?.length > 0
             ? profile.preferred_styles.map(s => <Badge key={s} variant="accent">{s}</Badge>)
@@ -20,7 +20,7 @@ export default function PreferenceProfile({ profile }) {
         </div>
       </div>
       <div>
-        <p className="text-[10px] font-mono uppercase tracking-widest text-aura-faint mb-2">Preferred Laws</p>
+        <p className="text-xs font-semibold text-aura-faint mb-2">Preferred Laws</p>
         <div className="flex flex-wrap gap-1.5">
           {profile.preferred_laws?.length > 0
             ? profile.preferred_laws.map(l => <Badge key={l} variant="default">{l}</Badge>)

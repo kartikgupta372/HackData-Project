@@ -37,10 +37,10 @@ export default function ChatInput({ onSend, disabled }) {
 
   return (
     <div className="px-4 pb-5 pt-3">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-3xl mx-auto">
         <div className={clsx(
-          'flex flex-col rounded-2xl bg-aura-card border transition-all duration-150',
-          disabled ? 'border-aura-line' : 'border-aura-border hover:border-aura-faint focus-within:border-aura-accent focus-within:shadow-glow-sm'
+          'flex flex-col rounded-2xl bg-aura-card border-2 transition-colors duration-150',
+          disabled ? 'border-aura-line' : 'border-aura-border hover:border-aura-faint focus-within:border-aura-accent'
         )}>
           <textarea
             ref={ref}
@@ -48,27 +48,28 @@ export default function ChatInput({ onSend, disabled }) {
             onChange={e => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={disabled}
-            placeholder="Ask about a design, paste a URL to analyse, or describe what you want to improve…"
+            placeholder="Paste a URL to audit, or ask about a design…"
             rows={1}
             className="resize-none bg-transparent px-4 pt-3.5 pb-2 text-sm text-aura-text placeholder:text-aura-faint outline-none font-body leading-relaxed disabled:opacity-50 min-h-[52px]"
           />
           <div className="flex items-center justify-between px-3 pb-3">
             <button
               onClick={pasteUrl}
-              className="flex items-center gap-1.5 text-xs text-aura-faint hover:text-aura-muted transition-colors px-2 py-1 rounded-md hover:bg-aura-elevated"
+              className="flex items-center gap-1.5 text-xs text-aura-muted hover:text-aura-text transition-colors px-2.5 py-1.5 rounded-lg hover:bg-aura-elevated"
             >
               <Globe className="w-3.5 h-3.5" />
               <span>Paste URL</span>
             </button>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-aura-faint font-mono">⏎ send · ⇧⏎ newline</span>
+              <span className="text-xs text-aura-faint hidden sm:inline">Enter to send, Shift+Enter for a new line</span>
               <button
+                aria-label="Send message"
                 onClick={submit}
                 disabled={disabled || !value.trim()}
                 className={clsx(
-                  'w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-150',
+                  'w-9 h-9 rounded-xl flex items-center justify-center transition-colors duration-150',
                   value.trim() && !disabled
-                    ? 'bg-aura-accent hover:bg-aura-accent-dim text-white shadow-glow-sm'
+                    ? 'bg-aura-accent hover:bg-aura-accent-glow text-aura-on-accent'
                     : 'bg-aura-elevated text-aura-faint cursor-not-allowed'
                 )}
               >
@@ -77,8 +78,8 @@ export default function ChatInput({ onSend, disabled }) {
             </div>
           </div>
         </div>
-        <p className="text-center text-[10px] text-aura-faint mt-2 font-mono">
-          Aura analyses design using Fitts's Law · Gestalt · F-Pattern · Visual Hierarchy
+        <p className="text-center text-xs text-aura-faint mt-2.5">
+          Aura judges design with Fitts's law, Gestalt, the F-pattern and visual hierarchy.
         </p>
       </div>
     </div>

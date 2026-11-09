@@ -93,7 +93,7 @@ export default function InsightsView() {
         <div className="p-4 border-b border-aura-line">
           <div className="flex items-center gap-2 mb-1">
             <Lightbulb className="w-4 h-4 text-aura-accent" />
-            <h2 className="font-display font-semibold text-sm text-aura-text">Insight Engine</h2>
+            <h2 className="font-display font-bold text-lg text-aura-text">Insight Engine</h2>
           </div>
           <p className="text-xs text-aura-muted leading-relaxed">
             Auto-generated UX findings from heatmap &amp; page data
@@ -116,7 +116,7 @@ export default function InsightsView() {
               const s = normaliseUrl(inputUrl)
               setInputUrl(s); setSiteUrl(s);
             }}
-              className="px-2 py-1.5 bg-aura-accent hover:bg-aura-accent-dim text-white rounded-lg text-xs transition-all">{'→'}</button>
+              className="px-2 py-1.5 bg-aura-accent hover:bg-aura-accent-glow text-aura-on-accent rounded-lg text-xs transition-all">{'→'}</button>
           </div>
         </div>
 
@@ -126,7 +126,7 @@ export default function InsightsView() {
             setInputUrl(s); setSiteUrl(s);
             handleGenerate();
           }} disabled={generating}
-            className="w-full flex items-center justify-center gap-2 bg-aura-accent hover:bg-aura-accent-dim disabled:opacity-40 text-white text-xs font-medium px-3 py-2.5 rounded-lg transition-all">
+            className="w-full flex items-center justify-center gap-2 bg-aura-accent hover:bg-aura-accent-glow disabled:opacity-40 text-aura-on-accent text-xs font-medium px-3 py-2.5 rounded-lg transition-all">
             {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
             {generating ? 'Analysing...' : 'Generate Insights'}
           </button>
@@ -217,11 +217,11 @@ function InsightCard({ insight, onChat, onStatus, isChatting, isUpdating }) {
         {/* Evidence + Recommendation */}
         <div className="grid grid-cols-2 gap-2 mb-3">
           <div className="p-2.5 rounded-lg bg-aura-elevated border border-aura-border">
-            <p className="text-[10px] text-aura-faint uppercase tracking-wide mb-1">Evidence</p>
+            <p className="text-xs font-semibold text-aura-faint mb-1">Evidence</p>
             <p className="text-xs text-aura-muted leading-relaxed">{insight.evidence}</p>
           </div>
           <div className="p-2.5 rounded-lg bg-aura-accent/5 border border-aura-accent/15">
-            <p className="text-[10px] text-aura-accent uppercase tracking-wide mb-1">Fix</p>
+            <p className="text-xs font-semibold text-aura-accent mb-1">Fix</p>
             <p className="text-xs text-aura-muted leading-relaxed">{insight.recommendation}</p>
           </div>
         </div>
@@ -276,7 +276,7 @@ function EmptyInsights({ tab, onGenerate, generating, hasUrl }) {
       </p>
       {tab === 'new' && hasUrl && (
         <button onClick={onGenerate} disabled={generating}
-          className="flex items-center gap-2 bg-aura-accent hover:bg-aura-accent-dim disabled:opacity-40 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-all">
+          className="flex items-center gap-2 bg-aura-accent hover:bg-aura-accent-glow disabled:opacity-40 text-aura-on-accent text-sm font-medium px-5 py-2.5 rounded-lg transition-all">
           {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
           {generating ? 'Analysing...' : 'Generate Insights'}
         </button>

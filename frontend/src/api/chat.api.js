@@ -1,4 +1,4 @@
-import api, { API_BASE as BASE } from './axios'
+import api, { API_BASE as BASE, getFreshAccessToken, refreshAccessToken } from './axios'
 
 export const chatApi = {
   createSession:  (siteUrl, domain, intent) => api.post('/chat/sessions', {
@@ -14,14 +14,23 @@ export const chatApi = {
   streamMessage: async (payload, handlers) => {
     const { onStage, onToken, onMessage, onDone, onError, onUserMessage } = handlers
 
-    let res
-    try {
-      res = await fetch(`${BASE}/chat/message`, {
+    const post = async () => {
+      const token = await getFreshAccessToken()
+      return fetch(`${BASE}/chat/message`, {
         method:      'POST',
         credentials: 'include',
-        headers:     { 'Content-Type': 'application/json' },
+        headers:     { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body:        JSON.stringify(payload),
       })
+    }
+
+    let res
+    try {
+      res = await post()
+      if (res.status === 401) {
+        // The access token expired mid-session: refresh once and resend.
+        try { await refreshAccessToken(); res = await post() } catch { /* handled below */ }
+      }
     } catch (err) {
       onError?.('Cannot reach the server. Check your connection and try again.', { retryable: true })
       return

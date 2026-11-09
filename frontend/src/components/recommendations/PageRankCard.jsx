@@ -5,11 +5,11 @@ import Badge from '../ui/Badge'
 function ScoreBar({ label, value, color = 'bg-aura-accent' }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[10px] font-mono text-aura-faint w-20 shrink-0">{label}</span>
+      <span className="text-xs font-semibold text-aura-faint w-20 shrink-0">{label}</span>
       <div className="flex-1 h-1 bg-aura-line rounded-full overflow-hidden">
         <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${value ?? 0}%` }} />
       </div>
-      <span className="text-[10px] font-mono text-aura-muted w-7 text-right">{Math.round(value ?? 0)}</span>
+      <span className="text-xs font-semibold text-aura-muted w-7 text-right">{Math.round(value ?? 0)}</span>
     </div>
   )
 }
@@ -35,7 +35,7 @@ export default function PageRankCard({ page }) {
         </div>
         <div className="text-right shrink-0">
           <div className={`font-display font-bold text-xl ${scoreColor}`}>{composite}</div>
-          <div className="text-[9px] font-mono text-aura-faint uppercase tracking-wider">composite</div>
+          <div className="text-[11px] text-aura-faint">composite</div>
         </div>
       </div>
 
@@ -51,10 +51,10 @@ export default function PageRankCard({ page }) {
       <div className="flex items-center justify-between pt-2 border-t border-aura-line">
         <div className="flex items-center gap-1.5">
           {page.site_type && <Badge variant="default">{page.site_type}</Badge>}
-          <span className="text-[10px] font-mono text-aura-faint">{page.analysis_count ?? 0} analyses</span>
+          <span className="text-xs font-semibold text-aura-faint">{page.analysis_count ?? 0} analyses</span>
         </div>
         {page.last_analysed && (
-          <span className="text-[10px] font-mono text-aura-faint">
+          <span className="text-xs font-semibold text-aura-faint">
             {formatDistanceToNow(new Date(page.last_analysed), { addSuffix: true })}
           </span>
         )}

@@ -1,12 +1,12 @@
-const jwt = require('jsonwebtoken');
 const { supabase } = require('../db/pool');
-const { config } = require('../config/env');
+const { verifyAccess } = require('../services/tokens');
 
 function readToken(req) {
-  if (req.cookies?.aura_token) return req.cookies.aura_token;
+  // An explicit Authorization header wins over the cookie.
   const header = req.headers?.authorization || '';
   const match = header.match(/^Bearer\s+(.+)$/i);
-  return match ? match[1].trim() : null;
+  if (match) return match[1].trim();
+  return req.cookies?.aura_token || null;
 }
 
 async function authMiddleware(req, res, next) {
@@ -15,9 +15,9 @@ async function authMiddleware(req, res, next) {
 
   let decoded;
   try {
-    decoded = jwt.verify(token, config.jwtSecret);
+    decoded = verifyAccess(token);
   } catch {
-    return res.status(401).json({ success: false, error: 'Session expired. Please sign in again.' });
+    return res.status(401).json({ success: false, error: 'Session expired. Please sign in again.', code: 'token_expired' });
   }
 
   try {

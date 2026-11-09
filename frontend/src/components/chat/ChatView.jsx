@@ -61,7 +61,7 @@ function NewSessionModal({ onSubmit, onSkip, loading }) {
     onSubmit({ url: trimmed || null, domain: domain || null, intent: intent || null })
   }
 
-  const selectClass = 'w-full bg-aura-card border border-aura-border rounded-xl px-4 py-2.5 text-sm text-aura-text outline-none focus:border-aura-accent transition-all appearance-none cursor-pointer'
+  const selectClass = 'w-full bg-aura-card border border-aura-border rounded-xl px-4 py-3 text-sm text-aura-text outline-none focus:border-aura-accent focus:ring-2 focus:ring-aura-accent/25 transition-colors appearance-none cursor-pointer'
   const selectBg = { backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6b80' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }
 
   return (
@@ -73,11 +73,7 @@ function NewSessionModal({ onSubmit, onSkip, loading }) {
         className="w-full max-w-xl"
       >
         <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 mb-4 px-3 py-1.5 rounded-full bg-aura-accent/10 border border-aura-accent/20">
-            <div className="w-1.5 h-1.5 rounded-full bg-aura-accent animate-pulse" />
-            <span className="text-xs font-mono text-aura-accent">New Analysis Session</span>
-          </div>
-          <h2 className="font-display font-bold text-2xl text-aura-text mb-2">
+          <h2 className="font-display font-bold text-3xl text-aura-text mb-2">
             Set up your analysis
           </h2>
           <p className="text-sm text-aura-muted max-w-sm mx-auto">
@@ -87,7 +83,7 @@ function NewSessionModal({ onSubmit, onSkip, loading }) {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           {/* URL input */}
-          <div className="flex items-center gap-2 bg-aura-card border border-aura-border rounded-xl px-4 py-3 focus-within:border-aura-accent transition-all">
+          <div className="flex items-center gap-2 bg-aura-card border-2 border-aura-border rounded-xl px-4 py-3 focus-within:border-aura-accent transition-colors">
             <Globe className="w-4 h-4 text-aura-faint shrink-0" />
             <input
               ref={inputRef}
@@ -121,14 +117,14 @@ function NewSessionModal({ onSubmit, onSkip, loading }) {
             <button
               type="button"
               onClick={onSkip}
-              className="flex-1 py-2.5 rounded-xl border border-aura-border text-aura-muted hover:text-aura-text hover:border-aura-accent/30 text-sm transition-all"
+              className="flex-1 py-3 rounded-xl border border-aura-border text-aura-muted hover:text-aura-text hover:border-aura-accent text-sm font-medium transition-colors"
             >
               Skip - just chat
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-aura-accent hover:bg-aura-accent-dim disabled:opacity-40 text-white text-sm font-medium transition-all"
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-aura-accent hover:bg-aura-accent-glow disabled:opacity-40 text-aura-on-accent text-sm font-semibold transition-colors"
             >
               {loading
                 ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping...</>
@@ -301,7 +297,7 @@ export default function ChatView() {
   }, [handleSend])
 
   return (
-    <div className="flex flex-col h-full bg-aura-void">
+    <div className="flex flex-col h-full bg-aura-base">
 
       {/* Progress bar when generating */}
       <AnimatePresence>
@@ -346,20 +342,15 @@ function EmptyState({ onSend, onNew }) {
         className="w-full max-w-2xl"
       >
         <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 mb-4 px-3 py-1.5 rounded-full bg-aura-accent/10 border border-aura-accent/20">
-            <div className="w-1.5 h-1.5 rounded-full bg-aura-accent animate-pulse" />
-            <span className="text-xs font-mono text-aura-accent">Full-Power AI Design Assistant</span>
-          </div>
-          <h1 className="font-display font-bold text-3xl text-aura-text mb-2 leading-tight">
-            What would you like<br />
-            <span className="text-gradient">to work on today?</span>
+          <h1 className="font-display font-bold text-4xl text-aura-text mb-3 leading-[1.1]">
+            Which design should I judge?
           </h1>
-          <p className="text-sm text-aura-muted max-w-md mx-auto">
-            Analyse, compare, fix, or generate code - paste a URL or ask anything about your design.
+          <p className="text-[15px] text-aura-muted max-w-md mx-auto leading-relaxed">
+            Paste a URL for a full UX audit, or ask about a single screen, button or layout.
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
           {SUGGESTIONS.map((s, i) => {
             const Icon = s.icon
             return (
@@ -369,11 +360,13 @@ function EmptyState({ onSend, onNew }) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 + i * 0.07, duration: 0.4 }}
                 onClick={() => onSend(s.text)}
-                className="group p-4 rounded-xl bg-aura-card border border-aura-border hover:border-aura-accent/40 hover:bg-aura-elevated text-left transition-all duration-200"
+                className="group flex flex-col items-start justify-start p-4 rounded-2xl bg-aura-card border border-aura-border hover:border-aura-accent hover:bg-aura-elevated text-left transition-colors duration-150"
               >
-                <Icon className="w-4 h-4 text-aura-accent mb-3" />
-                <p className="text-sm font-medium text-aura-text mb-1">{s.text}</p>
-                <p className="text-xs text-aura-muted">{s.sub}</p>
+                <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-aura-accent/15 text-aura-accent mb-3 group-hover:bg-aura-accent group-hover:text-aura-on-accent transition-colors">
+                  <Icon className="w-4 h-4" />
+                </span>
+                <p className="text-sm font-semibold text-aura-text mb-1">{s.text}</p>
+                <p className="text-xs text-aura-muted leading-relaxed">{s.sub}</p>
               </motion.button>
             )
           })}
@@ -382,9 +375,9 @@ function EmptyState({ onSend, onNew }) {
         <div className="text-center">
           <button
             onClick={onNew}
-            className="text-xs text-aura-accent hover:underline transition-colors"
+            className="text-sm font-medium text-aura-accent hover:text-aura-accent-glow underline underline-offset-4 transition-colors"
           >
-            + Start new session with a website URL
+            Start a session with a website URL
           </button>
         </div>
       </motion.div>

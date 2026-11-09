@@ -27,20 +27,20 @@ export default function ProgressBar({ stage }) {
       transition={{ duration: 0.2 }}
       className="shrink-0 px-4 pt-3 pb-0"
     >
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-3xl mx-auto bg-aura-card border border-aura-border rounded-xl px-4 py-3">
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-aura-accent animate-pulse" />
-            <span className="text-xs text-aura-muted font-mono">{label}</span>
+            <span className="text-sm font-medium text-aura-text">{label}</span>
             {stage.current_page && (
-              <span className="text-xs text-aura-faint font-mono">— {stage.current_page}</span>
+              <span className="text-xs text-aura-muted truncate max-w-[40ch]">{stage.current_page}</span>
             )}
           </div>
-          <span className="text-xs font-mono text-aura-faint">{pct}%</span>
+          <span className="text-sm font-display font-semibold text-aura-accent">{pct}%</span>
         </div>
-        <div className="h-0.5 bg-aura-line rounded-full overflow-hidden">
+        <div className="h-1.5 bg-aura-elevated rounded-full overflow-hidden">
           <motion.div
-            className="h-full bg-aura-accent progress-glow rounded-full"
+            className="h-full bg-aura-accent rounded-full"
             animate={{ width: `${pct}%` }}
             transition={{ duration: 0.4, ease: 'easeOut' }}
           />

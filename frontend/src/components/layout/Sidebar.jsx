@@ -78,13 +78,13 @@ export default function Sidebar() {
     <motion.aside
       animate={{ width: sidebarCollapsed ? 60 : 260 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="h-screen bg-aura-surface border-r border-aura-line flex flex-col shrink-0 relative z-20 overflow-hidden"
+      aria-label="Sessions" className="h-screen bg-aura-void border-r border-aura-line flex flex-col shrink-0 relative z-20 overflow-hidden"
     >
       {}
       <div className={clsx('flex items-center h-14 px-4 border-b border-aura-line shrink-0', sidebarCollapsed && 'justify-center px-0')}>
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-7 h-7 rounded-md bg-aura-accent/20 border border-aura-accent/30 flex items-center justify-center shrink-0">
-            <Sparkles className="w-3.5 h-3.5 text-aura-accent" />
+          <div className="w-8 h-8 rounded-lg bg-aura-accent flex items-center justify-center shrink-0">
+            <Sparkles className="w-4 h-4 text-aura-on-accent" />
           </div>
           <AnimatePresence>
             {!sidebarCollapsed && (
@@ -92,7 +92,7 @@ export default function Sidebar() {
                 initial={{ opacity: 0, width: 0 }}
                 animate={{ opacity: 1, width: 'auto' }}
                 exit={{ opacity: 0, width: 0 }}
-                className="font-display font-bold text-sm text-gradient whitespace-nowrap overflow-hidden"
+                className="font-display font-bold text-[15px] text-aura-text whitespace-nowrap overflow-hidden"
               >
                 Aura Design AI
               </motion.span>
@@ -107,9 +107,8 @@ export default function Sidebar() {
           onClick={handleNewChat}
           className={clsx(
             'w-full flex items-center gap-2 text-sm font-medium rounded-md transition-all duration-150',
-            'bg-aura-accent/10 hover:bg-aura-accent/20 border border-aura-accent/20 hover:border-aura-accent/40',
-            'text-aura-accent hover:text-aura-accent-glow',
-            sidebarCollapsed ? 'justify-center p-2' : 'px-3 py-2'
+            'bg-aura-accent hover:bg-aura-accent-glow text-aura-on-accent font-semibold',
+            sidebarCollapsed ? 'justify-center p-2' : 'px-3 py-2.5'
           )}
         >
           <Plus className="w-4 h-4 shrink-0" />
@@ -120,7 +119,7 @@ export default function Sidebar() {
       {/* Sessions list */}
       <div className="flex-1 overflow-y-auto px-2 pb-2 min-h-0">
         {!sidebarCollapsed && sessions.length > 0 && (
-          <p className="text-[10px] font-mono uppercase tracking-widest text-aura-faint px-2 py-2">Recent</p>
+          <p className="text-xs font-semibold text-aura-muted px-2 py-2">Recent analyses</p>
         )}
         <div className="flex flex-col gap-0.5">
           {sessions.map(s => (
@@ -140,34 +139,33 @@ export default function Sidebar() {
       {/* Bottom: settings + user */}
       <div className={clsx('border-t border-aura-line p-2 shrink-0 flex flex-col gap-1', sidebarCollapsed && 'items-center')}>
         <SidebarButton icon={<Settings className="w-4 h-4" />} label="Settings" collapsed={sidebarCollapsed} />
+        <SidebarButton
+          icon={sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          label="Collapse sidebar"
+          collapsed={sidebarCollapsed}
+          onClick={toggleSidebar}
+        />
         {!sidebarCollapsed && user && (
-          <div className="flex items-center gap-2.5 px-2 py-2 rounded-md bg-aura-card border border-aura-line mt-1">
-            <div className="w-7 h-7 rounded-full bg-aura-accent/20 border border-aura-accent/30 flex items-center justify-center shrink-0">
-              <span className="text-xs font-display font-bold text-aura-accent">{user.name?.[0]?.toUpperCase()}</span>
+          <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl bg-aura-card border border-aura-border mt-1">
+            <div className="w-8 h-8 rounded-full bg-aura-warn/20 border border-aura-warn/40 flex items-center justify-center shrink-0">
+              <span className="text-xs font-display font-bold text-aura-warn">{user.name?.[0]?.toUpperCase()}</span>
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-aura-text truncate">{user.name}</p>
-              <p className="text-[10px] text-aura-faint truncate">{user.email}</p>
+              <p className="text-[11px] text-aura-muted truncate">{user.email}</p>
             </div>
-            <button onClick={logout} className="text-aura-faint hover:text-aura-error transition-colors p-1 rounded">
+            <button onClick={logout} aria-label="Sign out" title="Sign out" className="text-aura-muted hover:text-aura-error transition-colors p-1.5 rounded-md hover:bg-aura-elevated">
               <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
         {sidebarCollapsed && (
-          <button onClick={logout} className="p-2 text-aura-faint hover:text-aura-error transition-colors rounded-md hover:bg-aura-card">
+          <button onClick={logout} aria-label="Sign out" title="Sign out" className="p-2 text-aura-muted hover:text-aura-error transition-colors rounded-md hover:bg-aura-card">
             <LogOut className="w-4 h-4" />
           </button>
         )}
       </div>
 
-      {/* Collapse toggle */}
-      <button
-        onClick={toggleSidebar}
-        className="absolute top-4 -right-3 w-6 h-6 rounded-full bg-aura-card border border-aura-border flex items-center justify-center text-aura-faint hover:text-aura-text hover:border-aura-accent transition-all z-30"
-      >
-        {sidebarCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
-      </button>
     </motion.aside>
   )
 }
@@ -183,17 +181,18 @@ function SessionItem({ session, isActive, collapsed, isDeleting, onSelect, onDel
     <button
       onClick={onSelect}
       className={clsx(
-        'group w-full flex items-center gap-2.5 rounded-md px-2 py-2 text-left transition-all duration-150 text-sm',
+        'group relative w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors duration-150 text-sm',
         isActive
-          ? 'bg-aura-accent/10 text-aura-text border border-aura-accent/20'
+          ? 'bg-aura-elevated text-aura-text'
           : 'text-aura-muted hover:text-aura-text hover:bg-aura-card',
         collapsed && 'justify-center px-0'
       )}
     >
+      {isActive && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-aura-accent" />}
       <MessageSquare className={clsx('w-3.5 h-3.5 shrink-0', isActive ? 'text-aura-accent' : 'text-aura-faint')} />
       {!collapsed && (
         <>
-          <span className="truncate flex-1 text-xs">{label}</span>
+          <span className="truncate flex-1 text-[13px]">{label}</span>
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <div
               onClick={isDeleting ? undefined : onDelete}

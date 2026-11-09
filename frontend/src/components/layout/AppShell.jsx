@@ -26,16 +26,10 @@ export default function AppShell() {
   }
 
   return (
-    <div className="flex h-screen bg-aura-void overflow-hidden">
-      {}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute top-0 left-64 w-96 h-96 bg-aura-accent/[0.03] rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-0 w-80 h-80 bg-aura-accent/[0.02] rounded-full blur-3xl" />
-      </div>
-
+    <div data-feature={activeFeature} className="theme-app flex h-screen bg-aura-void text-aura-text overflow-hidden font-body">
       <Sidebar />
 
-      <div className="flex flex-col flex-1 min-w-0 relative z-10 transition-all duration-300">
+      <main className="flex flex-col flex-1 min-w-0 relative z-10 bg-aura-base">
         <FeatureSwitcher />
         <AnimatePresence mode="wait">
           <motion.div
@@ -49,7 +43,7 @@ export default function AppShell() {
             <FeatureView />
           </motion.div>
         </AnimatePresence>
-      </div>
+      </main>
 
       {/* Onboarding overlay for first-time users */}
       {!onboardingCompleted && (

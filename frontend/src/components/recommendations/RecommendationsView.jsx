@@ -145,7 +145,7 @@ export default function RecommendationsView() {
         <div className="p-4 border-b border-aura-line">
           <div className="flex items-center gap-2 mb-1">
             <Star className="w-4 h-4 text-aura-accent" />
-            <h2 className="font-display font-semibold text-sm text-aura-text">Recommendations</h2>
+            <h2 className="font-display font-bold text-lg text-aura-text">Recommendations</h2>
           </div>
           <p className="text-xs text-aura-muted leading-relaxed">
             AI compares your site to top benchmarks and generates prioritised change cards
@@ -154,7 +154,7 @@ export default function RecommendationsView() {
 
         {}
         <div className="p-3 border-b border-aura-line flex flex-col gap-2">
-          <p className="text-xs text-aura-faint uppercase tracking-wide">Website to Analyse</p>
+          <p className="text-xs text-aura-faint">Website to Analyse</p>
           <div className="flex gap-1.5">
             <input
               value={inputUrl}
@@ -164,7 +164,7 @@ export default function RecommendationsView() {
               className="flex-1 min-w-0 bg-aura-card border border-aura-border rounded-lg px-2.5 py-1.5 text-xs text-aura-text placeholder:text-aura-faint outline-none focus:border-aura-accent transition-all"
             />
             <button onClick={handleUrlApply}
-              className="shrink-0 px-2 py-1.5 bg-aura-accent hover:bg-aura-accent-dim text-white rounded-lg text-xs font-medium transition-all">
+              className="shrink-0 px-2 py-1.5 bg-aura-accent hover:bg-aura-accent-glow text-aura-on-accent rounded-lg text-xs font-medium transition-all">
               Set
             </button>
           </div>
@@ -179,13 +179,13 @@ export default function RecommendationsView() {
             ))}
           </select>
           {siteUrl && (
-            <p className="text-[10px] text-aura-accent font-mono truncate">{siteUrl}</p>
+            <p className="text-xs font-semibold text-aura-accent font-mono truncate">{siteUrl}</p>
           )}
         </div>
 
         <div className="p-3 border-b border-aura-line flex flex-col gap-2">
           <button onClick={handleGenerate} disabled={generating || !siteUrl}
-            className="w-full flex items-center justify-center gap-2 bg-aura-accent hover:bg-aura-accent-dim disabled:opacity-40 text-white text-xs font-medium px-3 py-2.5 rounded-lg transition-all">
+            className="w-full flex items-center justify-center gap-2 bg-aura-accent hover:bg-aura-accent-glow disabled:opacity-40 text-aura-on-accent text-xs font-medium px-3 py-2.5 rounded-lg transition-all">
             {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
             {generating ? 'Generating...' : 'Generate New Cards'}
           </button>
@@ -311,7 +311,7 @@ function RecommendationCard({ card, priority, selected, onSelect, onAction, onDi
               </div>
             )}
             {priority && !isDecided && (
-              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-aura-accent text-white text-[9px] font-bold flex items-center justify-center leading-none">
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-aura-accent text-aura-on-accent text-[9px] font-bold flex items-center justify-center leading-none">
                 {priority}
               </span>
             )}
@@ -383,7 +383,7 @@ function RecommendationCard({ card, priority, selected, onSelect, onAction, onDi
           </button>
           {/* Approve → implement */}
           <button onClick={() => onAction('approve')} disabled={isActioning}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-aura-accent hover:bg-aura-accent-dim text-white text-xs font-medium transition-all disabled:opacity-40">
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-aura-accent hover:bg-aura-accent-glow text-aura-on-accent text-xs font-medium transition-all disabled:opacity-40">
             {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
             Approve
           </button>
@@ -441,7 +441,7 @@ function VibePromptModal({ cardIds, siteUrl, onClose }) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-aura-border shrink-0">
           <div className="flex items-center gap-2">
             <Wand2 className="w-4 h-4 text-purple-400" />
-            <h3 className="font-display font-semibold text-sm text-aura-text">Vibe-Coding Prompt</h3>
+            <h3 className="font-display font-bold text-base text-aura-text">Vibe-Coding Prompt</h3>
             <span className="text-xs text-aura-faint">({cardIds.length} changes)</span>
           </div>
           <div className="flex items-center gap-2">
@@ -509,7 +509,7 @@ function EmptyCards({ tab, onGenerate, generating, hasUrl }) {
       </p>
       {tab === 'pending' && hasUrl && (
         <button onClick={onGenerate} disabled={generating}
-          className="flex items-center gap-2 bg-aura-accent hover:bg-aura-accent-dim disabled:opacity-40 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-all">
+          className="flex items-center gap-2 bg-aura-accent hover:bg-aura-accent-glow disabled:opacity-40 text-aura-on-accent text-sm font-medium px-5 py-2.5 rounded-lg transition-all">
           {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
           {generating ? 'Generating...' : 'Generate Cards'}
         </button>

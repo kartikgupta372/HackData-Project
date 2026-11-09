@@ -1,6 +1,7 @@
 const express    = require('express');
 const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
+const { issueSession, rotateSession, endSession } = require('../services/tokens');
 const rateLimit  = require('express-rate-limit');
 const { OAuth2Client } = require('google-auth-library');
 const crypto     = require('crypto');
@@ -17,14 +18,6 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-const COOKIE_OPTS = {
-  httpOnly: true,
-  secure:   config.cookieSecure,
-  sameSite: config.cookieSameSite,
-  path:     '/',
-  maxAge:   7 * 24 * 60 * 60 * 1000,
-};
-
 // A real bcrypt hash of a random string. Comparing against it when the email
 // doesn't exist keeps login timing the same for known and unknown accounts.
 // (The previous placeholder wasn't a valid hash, so bcrypt threw and unknown
@@ -32,10 +25,6 @@ const COOKIE_OPTS = {
 const DUMMY_HASH = bcrypt.hashSync(`aura-timing-${Math.random()}`, 10);
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function signToken(userId) {
-  return jwt.sign({ userId }, config.jwtSecret, { expiresIn: '7d' });
-}
 
 function publicUser(user) {
   if (!user) return null;
@@ -77,8 +66,8 @@ router.post('/register', authLimiter, async (req, res) => {
       throw new Error(error.message);
     }
 
-    res.cookie('aura_token', signToken(user.id), COOKIE_OPTS);
-    return res.status(201).json({ success: true, data: { user } });
+    const session = await issueSession(req, res, user.id);
+    return res.status(201).json({ success: true, data: { user, ...session } });
   } catch (err) {
     console.error('Register error:', err.message);
     return res.status(500).json({ success: false, error: 'Registration failed. Please try again.' });
@@ -100,8 +89,8 @@ router.post('/login', authLimiter, async (req, res) => {
     if (!user || !valid)
       return res.status(401).json({ success: false, error: 'Invalid email or password' });
 
-    res.cookie('aura_token', signToken(user.id), COOKIE_OPTS);
-    return res.json({ success: true, data: { user: publicUser(user) } });
+    const session = await issueSession(req, res, user.id);
+    return res.json({ success: true, data: { user: publicUser(user), ...session } });
   } catch (err) {
     console.error('Login error:', err.message);
     return res.status(500).json({ success: false, error: 'Login failed. Please try again.' });
@@ -139,8 +128,8 @@ router.post('/google', authLimiter, async (req, res) => {
       user = newUser;
     }
 
-    res.cookie('aura_token', signToken(user.id), COOKIE_OPTS);
-    return res.json({ success: true, data: { user: publicUser(user) } });
+    const session = await issueSession(req, res, user.id);
+    return res.json({ success: true, data: { user: publicUser(user), ...session } });
   } catch (err) {
     console.error('Google auth error:', err.message);
     return res.status(401).json({ success: false, error: 'Google authentication failed' });
@@ -169,7 +158,7 @@ const guestLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-router.post('/guest', guestLimiter, async (_req, res) => {
+router.post('/guest', guestLimiter, async (req, res) => {
   if (!config.allowGuestLogin)
     return res.status(403).json({ success: false, error: 'Guest access is turned off' });
   try {
@@ -180,8 +169,8 @@ router.post('/guest', guestLimiter, async (_req, res) => {
       .insert({ name: `Guest ${id.slice(0, 4).toUpperCase()}`, email: `guest-${id}@guest.aura.local`, password_hash: unusable })
       .select('id, name, email, plan').single();
     if (error) throw new Error(error.message);
-    res.cookie('aura_token', signToken(user.id), COOKIE_OPTS);
-    return res.status(201).json({ success: true, data: { user } });
+    const session = await issueSession(req, res, user.id);
+    return res.status(201).json({ success: true, data: { user, ...session } });
   } catch (err) {
     console.error('Guest login error:', err.message);
     return res.status(500).json({ success: false, error: 'Could not start a guest session. Please try again.' });
@@ -271,7 +260,7 @@ router.get('/github/callback', authLimiter, async (req, res) => {
       user = created;
     }
 
-    res.cookie('aura_token', signToken(user.id), COOKIE_OPTS);
+    await issueSession(req, res, user.id);
     return res.redirect('/app');
   } catch (err) {
     console.error('GitHub auth error:', err.message);
@@ -283,10 +272,39 @@ router.get('/me', authMiddleware, (req, res) => {
   res.json({ success: true, data: { user: req.user } });
 });
 
-router.post('/logout', (req, res) => {
-  const { maxAge: _ignored, ...clearOpts } = COOKIE_OPTS;
-  res.clearCookie('aura_token', clearOpts);
+router.post('/logout', async (req, res) => {
+  try { await endSession(req, res); } catch (err) { console.error('Logout error:', err.message); }
   res.json({ success: true });
+});
+
+// Exchange the refresh cookie for a new access + refresh pair.
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  message: { success: false, error: 'Too many refresh attempts. Please wait a few minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.post('/refresh', refreshLimiter, async (req, res) => {
+  try {
+    const session = await rotateSession(req, res);
+    const { data: user, error } = await supabase
+      .from('users').select('id, name, email, plan').eq('id', session.userId).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!user) {
+      await endSession(req, res);
+      return res.status(401).json({ success: false, error: 'Account no longer exists' });
+    }
+    return res.json({ success: true, data: { user, accessToken: session.accessToken, expiresIn: session.expiresIn } });
+  } catch (err) {
+    if (err.status === 401) {
+      await endSession(req, res).catch(() => {});
+      return res.status(401).json({ success: false, error: err.message, code: 'refresh_failed' });
+    }
+    console.error('Refresh error:', err.message);
+    return res.status(503).json({ success: false, error: 'Service temporarily unavailable' });
+  }
 });
 
 module.exports = router;

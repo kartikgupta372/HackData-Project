@@ -1,15 +1,15 @@
 import { clsx } from 'clsx'
 
 const variants = {
-  primary:  'bg-aura-accent hover:bg-aura-accent-dim text-white shadow-glow-sm hover:shadow-glow',
-  ghost:    'bg-transparent hover:bg-aura-elevated text-aura-muted hover:text-aura-text border border-transparent hover:border-aura-border',
-  outline:  'bg-transparent border border-aura-border hover:border-aura-accent text-aura-text hover:text-aura-accent',
-  danger:   'bg-transparent hover:bg-red-500/10 text-aura-muted hover:text-aura-error border border-transparent',
+  primary:  'bg-aura-accent hover:bg-aura-accent-glow text-aura-on-accent font-semibold shadow-sm',
+  ghost:    'bg-transparent hover:bg-aura-elevated text-aura-muted hover:text-aura-text border border-transparent',
+  outline:  'bg-transparent border border-aura-border hover:border-aura-accent text-aura-text hover:bg-aura-accent/10',
+  danger:   'bg-transparent hover:bg-aura-error/10 text-aura-muted hover:text-aura-error border border-transparent',
 }
 const sizes = {
-  sm: 'text-xs px-2.5 py-1.5 gap-1.5',
-  md: 'text-sm px-3.5 py-2 gap-2',
-  lg: 'text-sm px-5 py-2.5 gap-2',
+  sm: 'text-xs px-3 py-1.5 gap-1.5 rounded-lg',
+  md: 'text-sm px-4 py-2 gap-2 rounded-lg',
+  lg: 'text-sm px-5 py-3 gap-2 rounded-xl',
 }
 
 export default function Button({ variant='primary', size='md', className, children, disabled, loading, icon, ...props }) {
@@ -17,7 +17,7 @@ export default function Button({ variant='primary', size='md', className, childr
     <button
       disabled={disabled || loading}
       className={clsx(
-        'inline-flex items-center justify-center font-body font-medium rounded-md transition-all duration-150 cursor-pointer select-none',
+        'inline-flex items-center justify-center font-body font-medium transition-colors duration-150 cursor-pointer select-none',
         'disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none',
         variants[variant], sizes[size], className
       )}

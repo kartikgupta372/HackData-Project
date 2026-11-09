@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { authApi } from '../api/auth.api'
+import { clearAccessToken } from '../api/axios'
 import { onboardingApi } from '../api/onboarding.api'
 
 export const useAuthStore = create((set, get) => ({
@@ -77,6 +78,7 @@ export const useAuthStore = create((set, get) => ({
 
   logout: async () => {
     await authApi.logout().catch(() => {})
+    clearAccessToken()
     set({ user: null, isAuthenticated: false, onboardingCompleted: false, onboardingData: null })
   },
 }))

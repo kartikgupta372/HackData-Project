@@ -91,7 +91,7 @@ export default function HeatmapView() {
         <div className="p-4 border-b border-aura-line">
           <div className="flex items-center gap-2 mb-1">
             <Activity className="w-4 h-4 text-aura-accent" />
-            <h2 className="font-display font-semibold text-sm text-aura-text">Heatmap Studio</h2>
+            <h2 className="font-display font-bold text-lg text-aura-text">Heatmap Studio</h2>
           </div>
           <p className="text-xs text-aura-muted leading-relaxed">Screenshot surveys, click heatmaps, shareable links</p>
         </div>
@@ -104,7 +104,7 @@ export default function HeatmapView() {
               placeholder="Filter by site URL\u2026"
               className="flex-1 bg-aura-card border border-aura-border rounded-lg px-2.5 py-1.5 text-xs text-aura-text placeholder:text-aura-faint outline-none focus:border-aura-accent transition-all" />
             <button onClick={() => setSiteUrl(inputUrl)}
-              className="px-2 py-1.5 bg-aura-accent hover:bg-aura-accent-dim text-white rounded-lg text-xs transition-all">{'→'}</button>
+              className="px-2 py-1.5 bg-aura-accent hover:bg-aura-accent-glow text-aura-on-accent rounded-lg text-xs transition-all">{'→'}</button>
           </div>
         </div>
 
@@ -137,7 +137,7 @@ export default function HeatmapView() {
         {activeView === 'surveys' && (
           <div className="p-3">
             <button onClick={() => setShowCreateModal(true)}
-              className="w-full flex items-center justify-center gap-2 bg-aura-accent hover:bg-aura-accent-dim text-white text-xs font-medium px-3 py-2.5 rounded-lg transition-all">
+              className="w-full flex items-center justify-center gap-2 bg-aura-accent hover:bg-aura-accent-glow text-aura-on-accent text-xs font-medium px-3 py-2.5 rounded-lg transition-all">
               <Plus className="w-3.5 h-3.5" /> New Survey
             </button>
           </div>
@@ -462,7 +462,7 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-aura-border">
           <div className="flex items-center gap-2">
             <Camera className="w-4 h-4 text-aura-accent" />
-            <h3 className="font-display font-semibold text-sm text-aura-text">New Heatmap Survey</h3>
+            <h3 className="font-display font-bold text-base text-aura-text">New Heatmap Survey</h3>
           </div>
           <button onClick={onClose} className="text-aura-faint hover:text-aura-muted"><X className="w-4 h-4" /></button>
         </div>
@@ -470,12 +470,12 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
         <div className="p-5 flex flex-col gap-4">
           {step === 'url' && <>
             <div>
-              <label className="text-xs text-aura-muted uppercase tracking-wide mb-1.5 block">Website URL *</label>
+              <label className="text-xs text-aura-muted mb-1.5 block">Website URL *</label>
               <input value={url} onChange={e => setUrl(e.target.value)} placeholder="yoursite.com or www.yoursite.com"
                 className="w-full bg-aura-elevated border border-aura-border focus:border-aura-accent rounded-lg px-3.5 py-2.5 text-sm text-aura-text placeholder:text-aura-faint outline-none transition-all" />
             </div>
             <div>
-              <label className="text-xs text-aura-muted uppercase tracking-wide mb-1.5 block">Page Identifier</label>
+              <label className="text-xs text-aura-muted mb-1.5 block">Page Identifier</label>
               <input value={pageKey} onChange={e => setPageKey(e.target.value)} placeholder="homepage / pricing / about"
                 className="w-full bg-aura-elevated border border-aura-border focus:border-aura-accent rounded-lg px-3.5 py-2.5 text-sm text-aura-text placeholder:text-aura-faint outline-none transition-all" />
             </div>
@@ -486,16 +486,16 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
                 ? <img src={resolveAssetUrl(screenshotData.screenshot_url)} alt="Preview" className="max-h-48 mx-auto object-contain rounded" />
                 : <p className="text-xs text-aura-faint py-8">Screenshot captured ({screenshotData?.element_count} elements)</p>}
               {screenshotData?.screenshot_url && screenshotData?.full_page_captured === false && (
-                <p className="text-[10px] text-aura-faint mt-2">Viewport only — full page was too long or timed out.</p>
+                <p className="text-xs font-semibold text-aura-faint mt-2">Viewport only — full page was too long or timed out.</p>
               )}
             </div>
             <div>
-              <label className="text-xs text-aura-muted uppercase tracking-wide mb-1.5 block">Survey Title</label>
+              <label className="text-xs text-aura-muted mb-1.5 block">Survey Title</label>
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder={`Heatmap Survey \u2014 ${pageKey}`}
                 className="w-full bg-aura-elevated border border-aura-border focus:border-aura-accent rounded-lg px-3.5 py-2.5 text-sm text-aura-text placeholder:text-aura-faint outline-none transition-all" />
             </div>
             <div>
-              <label className="text-xs text-aura-muted uppercase tracking-wide mb-1.5 block">Instructions <span className="normal-case text-aura-faint">(optional)</span></label>
+              <label className="text-xs text-aura-muted mb-1.5 block">Instructions <span className="normal-case text-aura-faint">(optional)</span></label>
               <textarea value={instructions} onChange={e => setInstructions(e.target.value)} rows={2}
                 placeholder="Click on the areas that catch your eye first\u2026"
                 className="w-full bg-aura-elevated border border-aura-border focus:border-aura-accent rounded-lg px-3.5 py-2.5 text-sm text-aura-text placeholder:text-aura-faint outline-none transition-all resize-none" />
@@ -507,12 +507,12 @@ function CreateSurveyModal({ defaultUrl, onClose, onCreated }) {
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-xs text-aura-muted border border-aura-border hover:border-aura-accent/30 transition-all">Cancel</button>
           {step === 'url'
             ? <button onClick={handleScreenshot} disabled={loading}
-                className="flex items-center gap-2 px-5 py-2 bg-aura-accent hover:bg-aura-accent-dim text-white text-xs font-medium rounded-lg transition-all disabled:opacity-40">
+                className="flex items-center gap-2 px-5 py-2 bg-aura-accent hover:bg-aura-accent-glow text-aura-on-accent text-xs font-medium rounded-lg transition-all disabled:opacity-40">
                 {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
                 {loading ? 'Capturing\u2026' : 'Take Screenshot'}
               </button>
             : <button onClick={handleCreate} disabled={loading}
-                className="flex items-center gap-2 px-5 py-2 bg-aura-accent hover:bg-aura-accent-dim text-white text-xs font-medium rounded-lg transition-all disabled:opacity-40">
+                className="flex items-center gap-2 px-5 py-2 bg-aura-accent hover:bg-aura-accent-glow text-aura-on-accent text-xs font-medium rounded-lg transition-all disabled:opacity-40">
                 {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
                 {loading ? 'Creating\u2026' : 'Create Survey & Get Link'}
               </button>
@@ -539,7 +539,7 @@ function EmptyState({ activeView, onNew }) {
       </p>
       {activeView === 'surveys' && (
         <button onClick={onNew}
-          className="flex items-center gap-2 bg-aura-accent hover:bg-aura-accent-dim text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-all">
+          className="flex items-center gap-2 bg-aura-accent hover:bg-aura-accent-glow text-aura-on-accent text-sm font-medium px-5 py-2.5 rounded-lg transition-all">
           <Plus className="w-4 h-4" /> Create First Survey
         </button>
       )}
