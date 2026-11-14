@@ -3,7 +3,6 @@ const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
 const { issueSession, rotateSession, endSession } = require('../services/tokens');
 const rateLimit  = require('express-rate-limit');
-const { OAuth2Client } = require('google-auth-library');
 const crypto     = require('crypto');
 const router     = express.Router();
 const { supabase } = require('../db/pool');
@@ -97,52 +96,13 @@ router.post('/login', authLimiter, async (req, res) => {
   }
 });
 
-router.post('/google', authLimiter, async (req, res) => {
-  const { credential } = req.body ?? {};
-  if (!credential || typeof credential !== 'string')
-    return res.status(400).json({ success: false, error: 'Google credential required' });
-  if (!config.googleClientId)
-    return res.status(503).json({ success: false, error: 'Google sign-in is not configured on the server' });
-
-  try {
-    const client = new OAuth2Client(config.googleClientId);
-    const ticket = await client.verifyIdToken({ idToken: credential, audience: config.googleClientId });
-    const payload = ticket.getPayload();
-    const email = payload?.email?.toLowerCase().trim();
-    if (!email || payload.email_verified === false)
-      return res.status(400).json({ success: false, error: 'Your Google account email is not verified' });
-
-    let { data: user, error: lookupErr } = await supabase
-      .from('users').select('*').eq('email', email).maybeSingle();
-    if (lookupErr) throw new Error(lookupErr.message);
-
-    if (!user) {
-      // Random unusable password — Google users sign in with Google only.
-      const unusable = await bcrypt.hash(`google:${payload.sub}:${Math.random()}:${Date.now()}`, 10);
-      const { data: newUser, error } = await supabase
-        .from('users')
-        .insert({ name: (payload.name || email.split('@')[0]).substring(0, 100), email, password_hash: unusable })
-        .select('id, name, email, plan')
-        .single();
-      if (error) throw new Error(error.message);
-      user = newUser;
-    }
-
-    const session = await issueSession(req, res, user.id);
-    return res.json({ success: true, data: { user: publicUser(user), ...session } });
-  } catch (err) {
-    console.error('Google auth error:', err.message);
-    return res.status(401).json({ success: false, error: 'Google authentication failed' });
-  }
-});
-
 // ── Which sign-in methods are available (the login page reads this) ──────────
 router.get('/providers', (_req, res) => {
   res.json({
     success: true,
     data: {
       password: true,
-      google: Boolean(config.googleClientId),
+      google: false, // Google sign-in was removed; email + password, GitHub and guest remain
       github: Boolean(config.githubClientId && config.githubClientSecret),
       guest: config.allowGuestLogin,
     },

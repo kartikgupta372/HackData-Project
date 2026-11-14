@@ -74,7 +74,7 @@ api.interceptors.response.use((res) => {
   return res
 })
 
-const NO_RETRY = ['/auth/login', '/auth/register', '/auth/google', '/auth/guest', '/auth/refresh', '/auth/logout']
+const NO_RETRY = ['/auth/login', '/auth/register', '/auth/guest', '/auth/refresh', '/auth/logout']
 
 let redirecting = false
 api.interceptors.response.use(

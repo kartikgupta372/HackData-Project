@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import GoogleIdentityButton from '../components/auth/GoogleIdentityButton';
 import Hero from '../landing-components/Hero';
 import Integrations from '../landing-components/integrations';
 import { AboutSection } from '../landing-components/Abouttxt';
@@ -115,10 +114,8 @@ const LandingNavbar = ({ onLoginClick, onSignUpClick }) => {
 
 export default function LandingPage() {
   const [isLoading, setIsLoading] = useState(true);
-  const { isAuthenticated, setAuthUser } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const nav = useNavigate();
-  const [showGooglePrompt, setShowGooglePrompt] = useState(false);
-  const [googleError, setGoogleError] = useState('');
 
   useEffect(() => {
     // Always set a fallback timeout to ensure loading clears
@@ -131,10 +128,9 @@ export default function LandingPage() {
     // Don't auto-redirect from landing; user may want to browse
   }, []);
 
-  const triggerGoogleAuth = () => {
-    setGoogleError('');
-    setShowGooglePrompt(true);
-  };
+  // Signed-in visitors go straight to the app; everyone else to email sign-in or sign-up.
+  const goLogin = () => nav(isAuthenticated ? '/app' : '/login');
+  const goSignUp = () => nav(isAuthenticated ? '/app' : '/register');
 
   return (
     <>
@@ -144,11 +140,11 @@ export default function LandingPage() {
 
       <div className={isLoading ? "invisible overflow-hidden h-screen" : "visible"}>
         <LandingNavbar
-          onLoginClick={triggerGoogleAuth}
-          onSignUpClick={triggerGoogleAuth}
+          onLoginClick={goLogin}
+          onSignUpClick={goSignUp}
         />
         <main>
-          <Hero onTryNowClick={triggerGoogleAuth} />
+          <Hero onTryNowClick={goSignUp} />
           <Integrations />
           <AboutSection />
           <FeaturesSection />
@@ -159,53 +155,6 @@ export default function LandingPage() {
         </main>
       </div>
 
-      {}
-      {showGooglePrompt && (
-        <div
-          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center"
-          onClick={() => setShowGooglePrompt(false)}
-        >
-          <div
-            className="bg-white rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-center mb-6">
-              <img
-                src={logo}
-                alt="Aura Design AI"
-                className="h-16 mx-auto mb-4"
-              />
-              <h2 className="text-2xl font-bold text-black mb-2">Welcome to AuraDesign AI</h2>
-              <p className="text-zinc-500 text-sm">Sign in with your Google account to continue</p>
-            </div>
-
-            <div className="flex justify-center mb-4">
-              <GoogleIdentityButton
-                onSuccess={(user) => {
-                  setGoogleError('');
-                  setAuthUser(user);
-                  setShowGooglePrompt(false);
-                  nav('/dashboard');
-                }}
-                onError={(message) => setGoogleError(message || 'Google login failed')}
-                theme="outline"
-                size="large"
-                text="continue_with"
-                shape="pill"
-                width={320}
-              />
-            </div>
-
-            {googleError && (
-              <p className="text-center text-xs text-red-500 mt-2">{googleError}</p>
-            )}
-
-            <p className="text-center text-xs text-zinc-400 mt-4">
-              By continuing, you agree to our Terms of Service and Privacy Policy.
-            </p>
-          </div>
-        </div>
-      )}
     </>
   );
 }

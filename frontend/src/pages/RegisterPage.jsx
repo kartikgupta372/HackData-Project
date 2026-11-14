@@ -5,7 +5,6 @@ import { Sparkles } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
-import GoogleIdentityButton from '../components/auth/GoogleIdentityButton'
 import AlternativeSignIn from '../components/auth/AlternativeSignIn'
 
 export default function RegisterPage() {
@@ -68,30 +67,6 @@ export default function RegisterPage() {
               Create Account
             </Button>
           </form>
-
-          {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
-          <div className="flex items-center gap-3 my-4">
-            <div className="flex-1 h-px bg-aura-border" />
-            <span className="text-xs text-aura-faint">OR</span>
-            <div className="flex-1 h-px bg-aura-border" />
-          </div>
-          )}
-
-          <div className="flex justify-center">
-            <GoogleIdentityButton
-              onSuccess={(user) => {
-                setError('')
-                setAuthUser(user)
-                nav('/dashboard', { replace: true })
-              }}
-              onError={(message) => setError(message || 'Google signup failed')}
-              text="signup_with"
-              theme="filled_black"
-              size="large"
-              shape="pill"
-              width={320}
-            />
-          </div>
 
           <AlternativeSignIn
             onSuccess={(user) => { setError(''); setAuthUser(user); nav('/app', { replace: true }) }}

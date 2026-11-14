@@ -61,9 +61,6 @@ export default function AlternativeSignIn({ onSuccess, onError }) {
           <UserRound className="w-4 h-4" /> {busy ? 'Starting…' : 'Continue as guest'}
         </button>
       )}
-      <p className="text-[11px] text-aura-faint text-center mt-1">
-        Google not working? Use email above, GitHub, or try as a guest.
-      </p>
     </div>
   )
 }

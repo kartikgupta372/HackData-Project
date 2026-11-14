@@ -47,20 +47,6 @@ export const useAuthStore = create((set, get) => ({
     return res.data.data.user
   },
 
-  loginWithGoogle: async (credential) => {
-    const res = await authApi.googleLogin(credential)
-    const user = res.data.data.user
-    set({ user, isAuthenticated: true })
-    try {
-      const ob = await onboardingApi.getStatus()
-      set({
-        onboardingCompleted: ob.data.data.onboarding_completed ?? false,
-        onboardingData: ob.data.data.onboarding_data ?? null,
-      })
-    } catch {  }
-    return user
-  },
-
   loginAsGuest: async () => {
     const res = await authApi.guestLogin()
     const user = res.data.data.user
